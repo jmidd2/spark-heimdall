@@ -136,10 +136,6 @@ Each device (remote computer) has the following properties:
 - `internal/config/config.go` - Configuration management
 - `internal/device/device.go` - Device management (not shown in provided files)
 
-## License
-
-[LICENSE INFO]
-
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
