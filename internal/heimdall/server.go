@@ -217,30 +217,33 @@ func (s *Server) HandleGetConfig(w http.ResponseWriter, r *http.Request) {
 
 	// Create a copy of the config without sensitive data
 	safeConfig := SafeEncodeConfig{
-		ListenPort:  s.configFile.ListenPort,
-		AutoStart:   s.configFile.AutoStart,
-		AutoStartID: s.configFile.AutoStartID,
-		VncViewer:   s.configFile.VncViewer,
-		RdpViewer:   s.configFile.RdpViewer,
+		ListenPort:    s.configFile.ListenPort,
+		AutoStart:     s.configFile.AutoStart,
+		AutoStartID:   s.configFile.AutoStartID,
+		VncViewer:     s.configFile.VncViewer,
+		VncPasswdFile: s.configFile.VncPasswordFile,
+		RdpViewer:     s.configFile.RdpViewer,
 	}
 
 	json.NewEncoder(w).Encode(safeConfig)
 }
 
 type SafeEncodeConfig struct {
-	ListenPort  int    `json:"listen_port"`
-	AutoStart   bool   `json:"auto_start"`
-	AutoStartID string `json:"auto_start_id"`
-	VncViewer   string `json:"vnc_viewer"`
-	RdpViewer   string `json:"rdp_viewer"`
+	ListenPort    int    `json:"listen_port"`
+	AutoStart     bool   `json:"auto_start"`
+	AutoStartID   string `json:"auto_start_id"`
+	VncViewer     string `json:"vnc_viewer"`
+	VncPasswdFile string `json:"vnc_passwd_file"`
+	RdpViewer     string `json:"rdp_viewer"`
 }
 
 type SafeDecodeConfig struct {
-	ListenPort  string `json:"listen_port"`
-	AutoStart   bool   `json:"auto_start"`
-	AutoStartID string `json:"auto_start_id"`
-	VncViewer   string `json:"vnc_viewer"`
-	RdpViewer   string `json:"rdp_viewer"`
+	ListenPort    string `json:"listen_port"`
+	AutoStart     bool   `json:"auto_start"`
+	AutoStartID   string `json:"auto_start_id"`
+	VncViewer     string `json:"vnc_viewer"`
+	VncPasswdFile string `json:"vnc_passwd_file"`
+	RdpViewer     string `json:"rdp_viewer"`
 }
 
 func (s *Server) HandleUpdateConfig(w http.ResponseWriter, r *http.Request) {
@@ -272,6 +275,7 @@ func (s *Server) HandleUpdateConfig(w http.ResponseWriter, r *http.Request) {
 	newConfig.AutoStartID = decodedConfig.AutoStartID
 	newConfig.VncViewer = decodedConfig.VncViewer
 	newConfig.RdpViewer = decodedConfig.RdpViewer
+	newConfig.VncPasswordFile = decodedConfig.VncPasswdFile
 
 	err = s.configFile.Update(newConfig)
 	if err != nil {
