@@ -102,6 +102,10 @@
             border-color: #24983f;
         }
 
+        .connected .btn-success:hover {
+            background-color: #a51d2a;
+        }
+
         .btn-success:hover {
             background-color: #13501e;
         }
@@ -267,9 +271,9 @@
     </div>
     <p>{{.IPAddress}}{{if ne .Port 0}}:{{.Port}}{{end}} ({{.Protocol}})</p>
     {{if .Description}}<p class="card-description">{{.Description}}</p>{{end}}
-    <form action="/connect/{{.ID}}" method="post">
-        <button type="submit" class="btn {{if eq .ID $.CurrentlyPlaying}}btn-success{{else}}btn-primary{{end}}">
-            {{if eq .ID $.CurrentlyPlaying}}Connected{{else}}Connect{{end}}
+    <form action="{{if eq .ID $.CurrentlyPlaying}}/disconnect{{else}}/connect/{{.ID}}{{end}}" method="post">
+        <button type="submit" class="btn {{if eq .ID $.CurrentlyPlaying}}btn-danger{{else}}btn-primary{{end}}">
+            {{if eq .ID $.CurrentlyPlaying}}Disconnect{{else}}Connect{{end}}
         </button>
     </form>
 </div>
@@ -338,6 +342,14 @@
                 <input type="number" id="listenPort" name="listen_port">
                 <small>Changes will take effect after restart</small>
             </div>
+            <div class="form-group">
+                <label for="vncViewer" id="vncViewerLabel">VNC Viewer</label>
+                <input type="text" id="vncViewer" name="vnc_viewer">
+            </div>
+            <div class="form-group">
+                <label for="rdpViewer" id="rdpViewerLabel">VNC Viewer</label>
+                <input type="text" id="rdpViewer" name="rdp_viewer">
+            </div>
             <div class="form-group checkbox-group">
                 <input type="checkbox" id="autoStart" name="auto_start">
                 <label for="autoStart">Auto-start connection on launch</label>
@@ -394,6 +406,8 @@
         document.getElementById( 'listenPort' ).value = data.listen_port;
         document.getElementById( 'autoStart' ).checked = data.auto_start;
         document.getElementById( 'autoStartId' ).value = data.auto_start_id;
+        document.getElementById('vncViewer').value = data.vnc_viewer;
+        document.getElementById('rdpViewer').value = data.rdp_viewer;
       } );
   }
 
@@ -520,7 +534,9 @@
     const formData = {
       listen_port:   document.getElementById( 'listenPort' ).value,
       auto_start:    document.getElementById( 'autoStart' ).checked,
-      auto_start_id: document.getElementById( 'autoStartId' ).value
+      auto_start_id: document.getElementById( 'autoStartId' ).value,
+      vnc_viewer: document.getElementById( 'vncViewer' ).value,
+      rdp_viewer: document.getElementById( 'rdpViewer' ).value,
     };
 
     fetch( '/api/config/update', {

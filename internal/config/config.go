@@ -25,9 +25,12 @@ type Manager interface {
 }
 
 type UpdateConfig struct {
-	ListenPort  int    `json:"listen_port"`
-	AutoStart   bool   `json:"auto_start"`
-	AutoStartID string `json:"auto_start_id"`
+	ListenPort      int    `json:"listen_port"`
+	AutoStart       bool   `json:"auto_start"`
+	AutoStartID     string `json:"auto_start_id"`
+	VncViewer       string `json:"vnc_viewer"`
+	VncPasswordFile string `json:"vnc_password_file"`
+	RdpViewer       string `json:"rdp_viewer"`
 }
 
 // Ensure Config implements Manager
@@ -51,15 +54,20 @@ type Config struct {
 	AutoStart   bool   `json:"auto_start"`
 	AutoStartID string `json:"auto_start_id"`
 
+	VncViewer       string `json:"vnc_viewer"`
+	VncPasswordFile string `json:"vnc_password_file"`
+	RdpViewer       string `json:"rdp_viewer"`
+
 	HighestDeviceId string `json:"-"`
 	device.Store
 }
 
-func NewConfig(path string) *Config {
+func NewConfig(path string, vncPasswdFile string) *Config {
 	return &Config{
-		FilePath:   path,
-		ListenPort: 8080,
-		Store:      device.Store{Devices: []device.Device{}},
+		FilePath:        path,
+		ListenPort:      8080,
+		Store:           device.Store{Devices: []device.Device{}},
+		VncPasswordFile: vncPasswdFile,
 	}
 }
 
@@ -67,9 +75,12 @@ func NewConfig(path string) *Config {
 func LoadConfigFromFlags() (*Config, error) {
 	configFilePtr := flag.String("config", getEnvString("HEIMDALL_CONFIG", "config.json"), "Path to configuration file")
 	portPtr := flag.Int("port", getEnvInt("HEIMDALL_PORT", 8080), "Port to listen on")
+	vncViewerPtr := flag.String("vnc", getEnvString("HEIMDALL_VNC_VIEWER", "vncviewer"), "VNC viewer executable")
+	vncPasswordFilePtr := flag.String("vnc-password-file", getEnvString("HEIMDALL_VNC_PASSWORD_FILE", fmt.Sprintf("%s/.vnc/passwd", getUserHomeDir())), "VNC password file")
+	rdpViewerPtr := flag.String("rdp", getEnvString("HEIMDALL_RDP_VIEWER", ""), "RDP viewer executable")
 	flag.Parse()
 
-	config := NewConfig(*configFilePtr)
+	config := NewConfig(*configFilePtr, *vncPasswordFilePtr)
 
 	// load from file
 	err := config.load()
@@ -82,7 +93,27 @@ func LoadConfigFromFlags() (*Config, error) {
 		config.ListenPort = *portPtr
 	}
 
+	if *vncViewerPtr != "" {
+		config.VncViewer = *vncViewerPtr
+	}
+
+	if *rdpViewerPtr != "" {
+		config.RdpViewer = *rdpViewerPtr
+	}
+
+	if *vncPasswordFilePtr != "" {
+		config.VncPasswordFile = *vncPasswordFilePtr
+	}
+
 	return config, nil
+}
+
+func getUserHomeDir() string {
+	dir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatal(err)
+	}
+	return dir
 }
 
 // Helper functions for environment variables
@@ -183,6 +214,18 @@ func (c *Config) Validate() error {
 		if !valid {
 			return fmt.Errorf("auto start ID %s does not reference a valid PC", c.AutoStartID)
 		}
+	}
+
+	if c.VncViewer == "" {
+		c.VncViewer = "vncviewer"
+	}
+
+	if c.VncPasswordFile == "" {
+		c.VncPasswordFile = fmt.Sprintf("%s/.vnc/passwd", getUserHomeDir())
+	}
+
+	if c.RdpViewer == "" {
+		c.RdpViewer = "" // TODO: Figure out a good default rdp viewer
 	}
 
 	return nil

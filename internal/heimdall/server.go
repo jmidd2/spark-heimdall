@@ -150,6 +150,13 @@ func (s *Server) HandleAddPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err = s.Store.Add(d)
+	if err != nil {
+		log.Printf("Error adding device: %v", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(w).Encode(d)
 	if err != nil {
@@ -209,29 +216,40 @@ func (s *Server) HandleGetConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	// Create a copy of the config without sensitive data
-	safeConfig := struct {
-		ListenPort  int    `json:"listen_port"`
-		AutoStart   bool   `json:"auto_start"`
-		AutoStartID string `json:"auto_start_id"`
-	}{
+	safeConfig := SafeEncodeConfig{
 		ListenPort:  s.configFile.ListenPort,
 		AutoStart:   s.configFile.AutoStart,
 		AutoStartID: s.configFile.AutoStartID,
+		VncViewer:   s.configFile.VncViewer,
+		RdpViewer:   s.configFile.RdpViewer,
 	}
 
 	json.NewEncoder(w).Encode(safeConfig)
 }
+
+type SafeEncodeConfig struct {
+	ListenPort  int    `json:"listen_port"`
+	AutoStart   bool   `json:"auto_start"`
+	AutoStartID string `json:"auto_start_id"`
+	VncViewer   string `json:"vnc_viewer"`
+	RdpViewer   string `json:"rdp_viewer"`
+}
+
+type SafeDecodeConfig struct {
+	ListenPort  string `json:"listen_port"`
+	AutoStart   bool   `json:"auto_start"`
+	AutoStartID string `json:"auto_start_id"`
+	VncViewer   string `json:"vnc_viewer"`
+	RdpViewer   string `json:"rdp_viewer"`
+}
+
 func (s *Server) HandleUpdateConfig(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	var decodedConfig struct {
-		ListenPort  string `json:"listen_port"`
-		AutoStart   bool   `json:"auto_start"`
-		AutoStartID string `json:"auto_start_id"`
-	}
+	var decodedConfig SafeDecodeConfig
 	err := json.NewDecoder(r.Body).Decode(&decodedConfig)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -252,6 +270,8 @@ func (s *Server) HandleUpdateConfig(w http.ResponseWriter, r *http.Request) {
 
 	newConfig.AutoStart = decodedConfig.AutoStart
 	newConfig.AutoStartID = decodedConfig.AutoStartID
+	newConfig.VncViewer = decodedConfig.VncViewer
+	newConfig.RdpViewer = decodedConfig.RdpViewer
 
 	err = s.configFile.Update(newConfig)
 	if err != nil {
@@ -293,7 +313,11 @@ func (s *Server) connectToPC(pc device.Device) {
 			args = append(args, "-FullScreen")
 		}
 
-		cmd = exec.Command("vncviewer", args...)
+		args = append(args, "-PasswordFile", s.configFile.VncPasswordFile)
+
+		log.Println(args)
+
+		cmd = exec.Command(s.configFile.VncViewer, args...)
 	case "rdp":
 		args := []string{"-u", pc.Username}
 
@@ -310,12 +334,13 @@ func (s *Server) connectToPC(pc device.Device) {
 			args[len(args)-1] = fmt.Sprintf("%s:%d", pc.IPAddress, pc.Port)
 		}
 
-		cmd = exec.Command("rdesktop", args...)
+		cmd = exec.Command(s.configFile.RdpViewer, args...)
 	default:
 		log.Printf("Unknown protocol: %s", pc.Protocol)
 		return
 	}
 
+	log.Printf("Running command: %v %v", cmd.Path, cmd.Args)
 	log.Printf("Connecting to %s (%s)", pc.Name, pc.IPAddress)
 
 	cmd.Stdout = os.Stdout
@@ -334,6 +359,8 @@ func (s *Server) connectToPC(pc device.Device) {
 		err := cmd.Wait()
 		if err != nil {
 			log.Printf("Command exited with error: %v", err)
+			s.currentCmd = nil
+			s.currentDeviceId = ""
 		}
 
 		s.cmdLock.Lock()

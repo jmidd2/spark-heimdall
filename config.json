@@ -2,6 +2,9 @@
   "listen_port": 8080,
   "auto_start": false,
   "auto_start_id": "",
+  "vnc_viewer": "vncviewer",
+  "vnc_password_file": "/home/jonm/.vnc/passwd",
+  "rdp_viewer": "",
   "devices": [
     {
       "id": "pc1",
@@ -20,6 +23,14 @@
       "port": 0,
       "full_screen": true,
       "description": "some sort of test"
+    },
+    {
+      "id": "pc4",
+      "name": "Jon Thinkpad",
+      "ip_address": "10.10.1.203",
+      "protocol": "vnc",
+      "port": 0,
+      "full_screen": true
     }
   ]
 }
