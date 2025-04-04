@@ -40,6 +40,9 @@ func (c *Config) Update(config UpdateConfig) error {
 	c.ListenPort = config.ListenPort
 	c.AutoStart = config.AutoStart
 	c.AutoStartID = config.AutoStartID
+	c.VncViewer = config.VncViewer
+	c.VncPasswordFile = config.VncPasswordFile
+	c.RdpViewer = config.RdpViewer
 
 	return c.save()
 }

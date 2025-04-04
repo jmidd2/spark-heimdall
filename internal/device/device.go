@@ -18,6 +18,7 @@ type Device struct {
 	Password    string `json:"password,omitempty"`
 	FullScreen  bool   `json:"full_screen"`
 	Description string `json:"description,omitempty"`
+	Screen      string `json:"screen,omitempty"`
 }
 
 type Devices []Device
