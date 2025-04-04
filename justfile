@@ -66,7 +66,7 @@ release VERSION:
     @echo "Tagging release v{{VERSION}}..."
     git tag v{{VERSION}}
     git push origin v{{VERSION}}
-    @echo "Release v{{VERSION}} tagged. GitHub Actions will build and publish the release."
+    @echo "Release v{{VERSION}} tagged. GitHub Actions will build and publish the release after a PR."
 
 # Run with specific config file
 run-with-config CONFIG:
