@@ -38,6 +38,7 @@ jobs:
     env:
       GOOS: ${{ matrix.os }}
       GOARCH: ${{ matrix.arch }}
+      TAG: ${{ github.ref_name }}
 
     steps:
       - name: Checkout code
@@ -57,7 +58,7 @@ jobs:
         run: go version
 
       - name: Display the release tag
-        run: echo ${{ github.ref_name }}
+        run: echo "$TAG"
 
       - name: Build binaries
         run: |
@@ -65,7 +66,7 @@ jobs:
           if [ "$GOOS" = "windows" ]; then
             just build-windows $GOARCH
           else
-            just build-unix $GOOS $GOARCH
+            just build-unix $GOOS $GOARCH $TAG
           fi
 
       - uses: actions/upload-artifact@v4
@@ -123,6 +124,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          prerelease: true
           name: ${{ github.ref_name }}
           body_path: release_body.md
           files: |
