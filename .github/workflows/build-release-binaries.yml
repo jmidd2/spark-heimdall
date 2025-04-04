@@ -1,0 +1,131 @@
+name: Build Release Binaries
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build:
+    # [Build job remains the same]
+    name: Build Release Assets
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os:
+          - linux
+          - darwin
+        arch:
+          - amd64
+          - arm64
+        include:
+          - os: windows
+            arch: amd64
+
+    env:
+      GOOS: ${{ matrix.os }}
+      GOARCH: ${{ matrix.arch }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0  # Required for changelog generation
+
+      - name: Set up Just
+        uses: extractions/setup-just@v3
+        with:
+          just-version: 1.40.0
+
+      - name: Set up Go
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.24
+
+      - name: Display the version of go that we have installed
+        run: go version
+
+      - name: Display the release tag
+        run: echo ${{ github.event.push.tag_name }}
+
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+          if [ "$GOOS" = "windows" ]; then
+            just build-windows $GOARCH
+          else
+            just build-unix $GOOS $GOARCH
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spark-heimdall-${{ env.GOOS }}-${{ env.GOARCH }}
+          path: |
+            ./dist/**/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0  # Required for changelog generation
+
+      - uses: actions/download-artifact@v4
+
+      - name: Download Artifacts
+        run: ls -R
+
+      - name: Generate Changelog
+        id: changelog
+        uses: TriPSs/conventional-changelog-action@v3
+        with:
+          github-token: ${{ secrets.github_token }}
+          output-file: 'CHANGELOG.md'
+          skip-version-file: 'true'
+          skip-commit: 'true'
+
+      - name: Generate Release Body
+        id: release_body
+        run: |
+          cat > release_body.md << 'EOL'
+          # Heimdall ${{ github.event.push.tag_name }} Release
+
+          ## Overview
+          Heimdall is a web-based remote desktop connection manager that supports VNC and RDP protocols.
+
+          ## Installation
+
+          ### Binary Downloads
+          Pre-built binaries are available for:
+          - Windows (64-bit)
+          - Linux (64-bit, ARM64)
+          - macOS (Intel, Apple Silicon)
+
+          ### Quick Start
+          1. Download the appropriate binary for your platform
+          2. Make the file executable (Linux/macOS): `chmod +x heimdall-*`
+          3. Run the application: `./heimdall-*`
+          4. Access the web interface at `http://localhost:8080`
+
+          ## Configuration
+          See our [README](https://github.com/yourusername/spark-heimdall#configuration) for configuration options and details.
+
+          ## Changes
+          EOL
+          
+          # Append the generated changelog to the release body
+          if [ -f "CHANGELOG.md" ]; then cat CHANGELOG.md >> release_body.md; fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: true
+          name: ${{ github.event.push.tag_name }}
+          body_path: release_body.md
+          files: |
+            ./spark-heimdall-windows-amd64/*
+            ./spark-heimdall-linux-amd64/*
+            ./spark-heimdall-linux-arm64/*
+            ./spark-heimdall-darwin-amd64/*
+            ./spark-heimdall-darwin-arm64/*
