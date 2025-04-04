@@ -15,6 +15,7 @@ Heimdall is a lightweight web-based application that helps you manage and connec
 - Go 1.18 or later
 - A VNC viewer (default: `vncviewer`)
 - An RDP client (configured through settings)
+- Just command runner (for build automation)
 
 ## Installation
 
@@ -26,14 +27,28 @@ Heimdall is a lightweight web-based application that helps you manage and connec
    cd spark-heimdall
    ```
 
-2. Build the application:
+2. Build the application using Just:
    ```
-   go build -o heimdall
+   just build
    ```
 
 3. Run the application:
    ```
-   ./heimdall
+   just run
+   ```
+
+### Using Pre-built Binaries
+
+1. Download the appropriate binary for your platform from the [Releases](https://github.com/yourusername/spark-heimdall/releases) page.
+
+2. Make the file executable (Linux/macOS):
+   ```
+   chmod +x heimdall-*
+   ```
+
+3. Run the application:
+   ```
+   ./heimdall-*
    ```
 
 ## Configuration
@@ -98,7 +113,7 @@ HEIMDALL_RDP_VIEWER=/usr/bin/xfreerdp
 
 1. Start Heimdall:
    ```
-   ./heimdall
+   just run
    ```
 
 2. Open your web browser and navigate to `http://localhost:8080` (or whatever port you configured)
@@ -107,19 +122,47 @@ HEIMDALL_RDP_VIEWER=/usr/bin/xfreerdp
 
 4. Click on a computer to connect to it
 
-## Managing Devices
+## Development
 
-### Device Properties
+### Build Tools
 
-Each device (remote computer) has the following properties:
+Heimdall uses [Just](https://github.com/casey/just) as a command runner for build automation. Install Just on your system before developing.
 
-- **Name**: A friendly name for the device
-- **IP Address**: The IP address or hostname of the remote computer
-- **Port**: The port number for the remote connection (default: 5900 for VNC)
-- **Protocol**: Either "vnc" or "rdp"
-- **Username**: Username for RDP connections (optional)
-- **Password**: Password for RDP connections (optional)
-- **Full Screen**: Whether to start the connection in full-screen mode
+Common Just commands:
+
+```
+just                    # List all available commands
+just build              # Build for current platform
+just build-all          # Build for all platforms
+just run                # Build and run
+just release-notes 1.0.0 # Generate release notes for version 1.0.0
+just full-release 1.0.0  # Tag a new release and generate notes
+```
+
+### Commit Guidelines
+
+We follow the [Conventional Commits](https://www.conventionalcommits.org/) standard for commit messages. This enables automatic generation of release notes and changelogs.
+
+Examples:
+- `feat: add support for RDP connections`
+- `fix: resolve connection timeout issue`
+- `docs: update installation instructions`
+- `chore: update dependencies`
+
+### Pull Request Process
+
+1. Ensure your code follows the project's coding standards
+2. Update the README.md with details of changes where appropriate
+3. Follow the Conventional Commits standard in your commit messages
+4. The PR title should summarize the changes and follow the Conventional Commits format
+5. Link any related issues in the PR description
+
+### Project Structure
+
+- `main.go` - Entry point of the application
+- `internal/heimdall/server.go` - HTTP server implementation
+- `internal/config/config.go` - Configuration management
+- `internal/device/device.go` - Device management
 
 ## Security Considerations
 
@@ -127,15 +170,6 @@ Each device (remote computer) has the following properties:
 - For VNC connections, Heimdall uses a VNC password file.
 - The web interface does not include authentication, so it should only be run on trusted networks.
 
-## Development
-
-### Project Structure
-
-- `main.go` - Entry point of the application
-- `internal/heimdall/server.go` - HTTP server implementation
-- `internal/config/config.go` - Configuration management
-- `internal/device/device.go` - Device management (not shown in provided files)
-
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please feel free to submit a Pull Request following our contribution guidelines above.
