@@ -31,10 +31,10 @@ test:
     go test -v ./...
 
 # Build binary for Linux or macOS
-build-unix os arch:
+build-unix os arch tag='dev':
     @echo "Building for {{os}}/{{arch}}..."
     mkdir -p dist
-    GOOS={{os}} GOARCH={{arch}} go build -o "dist/spark-heimdall-{{os}}-{{arch}}" -ldflags "-s -w" ./main.go
+    GOOS={{os}} GOARCH={{arch}} go build -o "dist/spark-heimdall-{{os}}-{{arch}}" -ldflags "-s -w -X main.version={{tag}}" ./main.go
 
 # Build binary for Windows
 build-windows arch:
