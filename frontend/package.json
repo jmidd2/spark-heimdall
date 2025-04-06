@@ -13,6 +13,7 @@
     "@biomejs/biome": "^1.9.4",
     "@sveltejs/vite-plugin-svelte": "^5.0.3",
     "@tsconfig/svelte": "^5.0.4",
+    "@types/node": "^22.14.0",
     "svelte": "^5.20.2",
     "svelte-check": "^4.1.4",
     "typescript": "~5.7.2",
