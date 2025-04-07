@@ -21,6 +21,13 @@ type Server struct {
 	currentCmd      *exec.Cmd
 	currentDeviceId string
 	Store           *device.Store
+	httpServer      *http.Server
+}
+
+type ApiResponse[T any] struct {
+	Data    T      `json:"data,omitempty"`
+	Success bool   `json:"success"`
+	Error   string `json:"error,omitempty"`
 }
 
 func NewServer(configFile *configuration.Config, templates *template.Template) *Server {
@@ -41,6 +48,14 @@ func (s *Server) SetupRoutes() {
 	http.HandleFunc("/api/pcs/delete", loggingMiddleware(s.HandleDeletePC))
 	http.HandleFunc("/api/config", loggingMiddleware(s.HandleGetConfig))
 	http.HandleFunc("/api/config/update", loggingMiddleware(s.HandleUpdateConfig))
+	http.HandleFunc("/api/devices", loggingMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		json.NewEncoder(w).Encode(ApiResponse[device.Devices]{
+			Success: true,
+			Data:    s.Store.Devices,
+		})
+	}))
 
 	// Serve static files (CSS, JS) if they exist
 	if _, err := os.Stat("static"); !os.IsNotExist(err) {
@@ -48,7 +63,32 @@ func (s *Server) SetupRoutes() {
 	}
 }
 
+func (s *Server) SetupRouter() http.Handler {
+	mux := http.NewServeMux()
+
+	// Static Routes
+	mux.HandleFunc("/", s.HandleIndex)
+
+	// Connection Routes
+	mux.HandleFunc("/connect/", s.HandleConnect)
+	mux.HandleFunc("/disconnect/", s.HandleDisconnect)
+
+	// API Routes
+	mux.HandleFunc("/api/devices", s.handleDevices)
+	mux.HandleFunc("/api/devices/", s.handleDeviceByID)
+	mux.HandleFunc("/api/config", s.handleConfig)
+
+	return mux
+}
+
 func (s *Server) Start() error {
+	routes := s.SetupRouter()
+
+	s.httpServer = &http.Server{
+		Addr:    fmt.Sprintf(":%d", s.configFile.ListenPort),
+		Handler: routes,
+	}
+
 	// Auto-start if configured
 	log.Println("Starting server...")
 	if s.configFile.AutoStart && s.configFile.AutoStartID != "" {
@@ -63,6 +103,7 @@ func (s *Server) Start() error {
 
 	log.Printf("Starting server on port %d", s.configFile.ListenPort)
 	log.Printf("Open http://localhost:%d in your browser", s.configFile.ListenPort)
+
 	err := http.ListenAndServe(fmt.Sprintf(":%d", s.configFile.ListenPort), nil)
 	if err != nil {
 		log.Fatalf("Server failed: %v", err)

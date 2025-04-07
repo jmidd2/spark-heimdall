@@ -34,20 +34,7 @@ export default defineConfig({
 
   // During development, proxy API requests to the Go backend
   server: {
-    proxy: {
-      '/api': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      },
-      '/connect': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      },
-      '/disconnect': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
-      }
-    }
+    cors: true,
   },
 
   // Resolve TypeScript path aliases

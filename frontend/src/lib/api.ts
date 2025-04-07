@@ -52,7 +52,7 @@ class ApiClient {
    */
   private async checkResponse<T>(response: Response) {
     const json: ApiResponse<T> = await response.json();
-
+    console.log(json)
     if (isApiError(json) && !hasData<T>(json)) {
       throw new Error(json.error);
     }
@@ -79,6 +79,8 @@ class ApiClient {
     if (!response.ok) {
       throw new Error(errorText ? errorText : 'There was a problem fetching data.');
     }
+
+    console.log(response)
     return await this.checkResponse(response);
   }
 
@@ -143,8 +145,8 @@ class ApiClient {
    * Fetches all devices from the server
    */
   async getDevices(): Promise<Device[]> {
-    const response = await this.getFetch<Device[]>(`devices`, '`Failed to fetch devices')
-
+    const response = await this.getFetch<Device[]>('devices', '`Failed to fetch devices')
+    console.log(response);
     return response || [];
   }
 
@@ -152,14 +154,14 @@ class ApiClient {
    * Adds a new device
    */
   async addDevice(device: Omit<Device, 'id'>): Promise<Device> {
-    return await this.postFetch<Device>( `devices`, device, '`Failed to add device' )
+    return await this.postFetch<Device>( 'devices', device, '`Failed to add device' )
   }
 
   /**
    * Updates an existing device
    */
   async updateDevice(device: Device) {
-    return await this.putFetch<Device>(`devices/${device.id}`, device, `Failed to update device`);
+    return await this.putFetch<Device>(`devices/${device.id}`, device, 'Failed to update device');
   }
 
   /**
@@ -173,14 +175,14 @@ class ApiClient {
    * Fetches application configuration
    */
   async getConfig(): Promise<AppConfig> {
-    return await this.getFetch<AppConfig>(`config`, 'Failed to fetch config')
+    return await this.getFetch<AppConfig>('config', 'Failed to fetch config')
   }
 
   /**
    * Updates application configuration
    */
   async updateConfig(config: Partial<AppConfig>): Promise<void> {
-    await this.putFetch(`config`, config, 'Failed to update config');
+    await this.putFetch('config', config, 'Failed to update config');
   }
 
   /**
@@ -194,7 +196,7 @@ class ApiClient {
    * Disconnects from the current remote connection
    */
   async disconnect(): Promise<void> {
-    await this.postFetch(`disconnect`, undefined, '`Failed to disconnect');
+    await this.postFetch('disconnect', undefined, '`Failed to disconnect');
   }
 }
 

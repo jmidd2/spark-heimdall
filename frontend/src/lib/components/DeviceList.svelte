@@ -4,24 +4,37 @@
   import DeviceCard from './DeviceCard.svelte';
 
   // Props
-  export let devices: Device[] = [];
-  export let connectedId: string | null = null;
-  export let onConnect: (device: Device) => void;
-  export let onEdit: (device: Device) => void;
-  export let onDelete: (deviceId: string) => void;
+  // export let devices: Device[] = [];
+  // export let connectedId: string | null = null;
+  // export let onConnect: (device: Device) => void;
+  // export let onEdit: (device: Device) => void;
+  // export let onDelete: (deviceId: string) => void;
+  //
+  // // Optional grouping
+  // export let groupByProtocol: boolean = false;
 
-  // Optional grouping
-  export let groupByProtocol: boolean = false;
+  type DeviceListProps = {
+      devices: Device[];
+      connectedId: string | null;
+      onConnect: (device: Device) => void;
+      onEdit: (device: Device) => void;
+      onDelete: (deviceId: string) => void;
+      groupByProtocol?: boolean;
+  }
+
+  const { devices = [], connectedId = null, onConnect, onEdit, onDelete, groupByProtocol }: DeviceListProps = $props();
+
+  $inspect(devices)
 
   // Computed properties
-  $: sortedDevices = [...devices].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedDevices = $derived([...devices].sort((a, b) => a.name.localeCompare(b.name)));
 
-  $: deviceGroups = groupByProtocol
+  const deviceGroups = $derived(groupByProtocol
                     ? {
       vnc: sortedDevices.filter(d => d.protocol === 'vnc'),
       rdp: sortedDevices.filter(d => d.protocol === 'rdp')
     }
-                    : { all: sortedDevices };
+                    : { all: sortedDevices });
 </script>
 
 <div class="device-list">
@@ -35,9 +48,9 @@
                         <DeviceCard
                                 {device}
                                 isConnected={device.id === connectedId}
-                                on:connect={() => onConnect(device)}
-                                on:edit={() => onEdit(device)}
-                                on:delete={() => onDelete(device.id)}
+                                onConnect={() => onConnect(device)}
+                                onEdit={() => onEdit(device)}
+                                onDelete={() => onDelete(device.id)}
                         />
                     {/each}
                 </div>
@@ -52,9 +65,9 @@
                         <DeviceCard
                                 {device}
                                 isConnected={device.id === connectedId}
-                                on:connect={() => onConnect(device)}
-                                on:edit={() => onEdit(device)}
-                                on:delete={() => onDelete(device.id)}
+                                onConnect={() => onConnect(device)}
+                                onEdit={() => onEdit(device)}
+                                onDelete={() => onDelete(device.id)}
                         />
                     {/each}
                 </div>
@@ -67,9 +80,9 @@
                 <DeviceCard
                         {device}
                         isConnected={device.id === connectedId}
-                        on:connect={() => onConnect(device)}
-                        on:edit={() => onEdit(device)}
-                        on:delete={() => onDelete(device.id)}
+                        onConnect={() => onConnect(device)}
+                        onEdit={() => onEdit(device)}
+                        onDelete={() => onDelete(device.id)}
                 />
             {/each}
         </div>
