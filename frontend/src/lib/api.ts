@@ -7,7 +7,7 @@ function isApiError(json: ApiResponse<unknown>): json is { success: false, error
 }
 
 function hasData<T>(json: ApiResponse<T>): json is { success: true, data: T} {
-  return (json as ApiResponse<unknown>).success && !!(json as ApiResponse<unknown>).data;
+  return (json as ApiResponse<unknown>).success && (json as ApiResponse<unknown>).data !== undefined;
 }
 
 /**
@@ -50,7 +50,7 @@ class ApiClient {
    * @returns {Promise<T>}
    * @private
    */
-  private async checkResponse<T>(response: Response) {
+  private async checkResponse<T>(response: Response): Promise<T> {
     const json: ApiResponse<T> = await response.json();
     console.log(json)
     if (isApiError(json) && !hasData<T>(json)) {
@@ -146,7 +146,7 @@ class ApiClient {
    */
   async getDevices(): Promise<Device[]> {
     const response = await this.getFetch<Device[]>('devices', '`Failed to fetch devices')
-    console.log(response);
+
     return response || [];
   }
 
