@@ -8,8 +8,15 @@
   type SettingsModalProps = {
     devices: Device[];
     onClose: () => void;
+    showModal: boolean
   }
-  const { devices, onClose }: SettingsModalProps = $props()
+  let { devices, onClose, showModal = $bindable() }: SettingsModalProps = $props()
+
+  let dialog = $state<HTMLDialogElement | undefined>();
+
+  $effect(() => {
+    if (showModal) dialog?.showModal();
+  });
 
   // Local state
   let formData = $state<AppConfig>({
@@ -100,13 +107,22 @@
     // For now, we'll just show a message that this feature is not implemented
     alert('Server restart functionality is not implemented yet.');
   }
+
+  function handleClose() {
+    showModal = false;
+    dialog?.close()
+    onClose();
+  }
 </script>
 
-<div class="modal-backdrop" onclick={onClose}>
+<dialog class="modal"
+        bind:this={dialog}
+        onclose={() => (showModal = false)}
+        onclick={(e) => { if (e.target === dialog) dialog.close(); }}>
     <div class="modal-content">
         <div class="modal-header">
             <h2>Application Settings</h2>
-            <button type="button" class="close-btn" onclick={onClose}>&times;</button>
+            <button type="button" class="close-btn" onclick={handleClose}>&times;</button>
         </div>
 
         {#if isLoading}
@@ -203,7 +219,7 @@
                         Restart Server
                     </button>
                     <div class="spacer"></div>
-                    <button type="button" class="btn btn-secondary" onclick={onClose}>
+                    <button type="button" class="btn btn-secondary" onclick={handleClose}>
                         Cancel
                     </button>
                     <button
@@ -217,170 +233,8 @@
             </form>
         {/if}
     </div>
-</div>
+</dialog>
 
 <style>
-    .modal-backdrop {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.5);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 100;
-    }
 
-    .modal-content {
-        background-color: #1b1e1f;
-        border-radius: 4px;
-        width: 90%;
-        max-width: 600px;
-        max-height: 90vh;
-        overflow-y: auto;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    }
-
-    .modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 1rem;
-        border-bottom: 1px solid #262a2b;
-        position: sticky;
-        top: 0;
-        background-color: #1b1e1f;
-        z-index: 1;
-    }
-
-    .modal-header h2 {
-        margin: 0;
-        color: #aec2d3;
-    }
-
-    .close-btn {
-        background: none;
-        border: none;
-        font-size: 1.5rem;
-        color: #6c757d;
-        cursor: pointer;
-    }
-
-    form {
-        padding: 1rem;
-    }
-
-    .form-section {
-        margin-bottom: 2rem;
-    }
-
-    .form-section h3 {
-        margin-top: 0;
-        margin-bottom: 1rem;
-        color: #aec2d3;
-        font-size: 1.1rem;
-        border-bottom: 1px solid #262a2b;
-        padding-bottom: 0.5rem;
-    }
-
-    .form-group {
-        margin-bottom: 1rem;
-    }
-
-    label {
-        display: block;
-        margin-bottom: 0.5rem;
-        color: #aec2d3;
-    }
-
-    input, select {
-        width: 100%;
-        padding: 0.5rem;
-        border: 1px solid #262a2b;
-        border-radius: 4px;
-        background-color: #2b2a33;
-        color: #fbfbfe;
-    }
-
-    .checkbox-group {
-        display: flex;
-        align-items: center;
-    }
-
-    .checkbox-group input {
-        width: auto;
-        margin-right: 0.5rem;
-    }
-
-    .form-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 0.5rem;
-        margin-top: 1.5rem;
-    }
-
-    .spacer {
-        flex-grow: 1;
-    }
-
-    .btn {
-        padding: 0.5rem 1rem;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 1rem;
-    }
-
-    .btn:disabled {
-        opacity: 0.7;
-        cursor: not-allowed;
-    }
-
-    .btn-primary {
-        background-color: #0062cc;
-        color: white;
-    }
-
-    .btn-secondary {
-        background-color: #6c757d;
-        color: white;
-    }
-
-    .btn-danger {
-        background-color: #dc3545;
-        color: white;
-    }
-
-    .loading {
-        padding: 2rem;
-        text-align: center;
-        color: #aec2d3;
-    }
-
-    .error-message {
-        background-color: #482121;
-        border: 1px solid #692929;
-        color: #f5c2c2;
-        padding: 0.75rem 1rem;
-        border-radius: 4px;
-        margin-top: 1rem;
-    }
-
-    .success-message {
-        background-color: #1a3e29;
-        border: 1px solid #245931;
-        color: #b9ffc9;
-        padding: 0.75rem 1rem;
-        border-radius: 4px;
-        margin-top: 1rem;
-    }
-
-    small {
-        color: #6c757d;
-        font-size: 0.875rem;
-        display: block;
-        margin-top: 0.25rem;
-    }
 </style>

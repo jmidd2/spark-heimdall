@@ -20,6 +20,8 @@
 
   $inspect(devices)
 
+  $inspect(error)
+
   // Load data on component mount
   onMount(async () => {
     try {
@@ -182,20 +184,18 @@
   {/if}
 
   <!-- Modals -->
-  {#if showDeviceModal}
     <DeviceModal
+            bind:showModal={showDeviceModal}
             device={editingDevice}
             onSave={handleDeviceSave}
             onClose={handleModalClose}
     />
-  {/if}
 
-  {#if showSettingsModal}
     <SettingsModal
+            bind:showModal={showSettingsModal}
             devices={devices}
             onClose={handleModalClose}
     />
-  {/if}
 
   <!-- Toast notifications -->
   {#if toastMessage}
