@@ -6,6 +6,7 @@
     // export let isConnected: boolean = false;
     // export let onEdit: (device: Device) => void;
     // export let onDelete: () => void;
+
     type DeviceCardProps = {
         device: Device;
         isConnected: boolean;
@@ -62,3 +63,28 @@
         {isConnected ? 'Disconnect' : 'Connect'}
     </button>
 </div>
+
+<style>
+    .card {
+        border: 1px solid #262a2b;
+        border-radius: 4px;
+        padding: 15px;
+        margin-bottom: 20px;
+        background-color: #1b1e1f;
+    }
+
+    .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+
+    .card-title {
+        margin: 0;
+        font-size: 1.2rem;
+    }
+    .card:only-child {
+        grid-column: 1 / 3;
+    }
+</style>

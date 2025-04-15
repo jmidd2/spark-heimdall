@@ -85,6 +85,20 @@
   "overrides": [
     {
       "include": [
+        "*.svelte",
+      ],
+      "linter": {
+        "rules": {
+          "correctness": {"noUnusedVariables": "off" },
+          "style": {
+            "useConst": "off",
+            "useImportType": "off"
+          }
+        }
+      }
+    },
+    {
+      "include": [
         "**/*.{ts,tsx}"
       ],
       "linter": {

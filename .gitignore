@@ -104,3 +104,5 @@ dist/
 events.json
 .artifact/
 config.json
+/config.yaml
+static/

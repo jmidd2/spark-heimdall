@@ -2,13 +2,13 @@
 <script lang="ts">
   type ToastProps = {
     message: string;
-    type: 'success' | 'error' | 'info';
-    duration: number; // Duration in milliseconds
-    position: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
+    type?: 'success' | 'error' | 'info';
+    duration?: number; // Duration in milliseconds
+    position?: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
   }
 
   // Props
-  const { message, type, duration = 3000, position = 'top-right' }: ToastProps = $props();
+  const { message, type = 'success', duration = 3000, position = 'top-right' }: ToastProps = $props();
 
   // State
   let isVisible = $state(true);
@@ -59,9 +59,9 @@
 
 {#if isVisible}
     <div class="toast toast-{type} toast-{position}">
-        <div class="toast-icon" onclick={close}>
+        <button class="toast-icon">
             {@html getIcon()}
-        </div>
+        </button>
         <div class="toast-content">
             {message}
         </div>

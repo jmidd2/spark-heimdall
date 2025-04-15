@@ -80,7 +80,7 @@ func LoadConfig(configFlag string) (*Config, error) {
 		configFile = os.Getenv("HEIMDALL_CONFIG")
 	}
 	if configFile == "" {
-		configFile = "config.yaml"
+		configFile = "config.json"
 	}
 
 	// Check if file exists

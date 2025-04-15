@@ -18,10 +18,6 @@
   let editingDevice = $state<Device | null>(null);
   let toastMessage = $state<string | null>(null);
 
-  $inspect(devices)
-
-  $inspect(error)
-
   // Load data on component mount
   onMount(async () => {
     try {
