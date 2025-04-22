@@ -39,17 +39,6 @@
     }
   });
 
-  // Show toast message for 3 seconds
-  $effect(() => {
-    if (toastMessage) {
-      const timeout = setTimeout(() => {
-        toastMessage = null;
-      }, 3000);
-
-      return () => clearTimeout(timeout);
-    }
-  });
-
   // Handle device actions
   async function handleConnect(device: Device) {
     try {
@@ -207,7 +196,7 @@
   }
 
   header {
-    display: flex;
+    display: block;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 1.5rem;
@@ -216,6 +205,7 @@
   .actions {
     display: flex;
     gap: 0.5rem;
+    flex-wrap: wrap;
   }
 
   .status-bar {
