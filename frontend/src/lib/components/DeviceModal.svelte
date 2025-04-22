@@ -39,6 +39,8 @@
         screen: '',
     });
 
+    $inspect(formData)
+
     let errors = $state<Record<string, string>>({});
 
     // Initialize form data when component mounts or device prop changes
@@ -125,6 +127,7 @@
         </div>
 
         <form onsubmit={handleSubmit}>
+            <input type="hidden" name="id" bind:value={formData.id} />
             <div class="form-group">
                 <label for="name">Name</label>
                 <input

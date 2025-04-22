@@ -242,12 +242,12 @@ func (c *Config) Save() error {
 }
 
 // AddDevice adds a new device to the configuration
-func (c *Config) AddDevice(dev Device) error {
+func (c *Config) AddDevice(dev Device) (Device, error) {
 	// Validate device ID is not already in use
 	dev.ID = strconv.Itoa(len(c.Devices))
 	for _, existingDev := range c.Devices {
 		if existingDev.ID == dev.ID {
-			return fmt.Errorf("device with ID %s already exists", dev.ID)
+			return Device{}, fmt.Errorf("device with ID %s already exists", dev.ID)
 		}
 	}
 
@@ -255,7 +255,12 @@ func (c *Config) AddDevice(dev Device) error {
 	c.Devices = append(c.Devices, dev)
 
 	// Save configuration
-	return c.Save()
+	err := c.Save()
+	if err != nil {
+		return Device{}, err
+	}
+
+	return dev, nil
 }
 
 // UpdateDevice updates an existing device

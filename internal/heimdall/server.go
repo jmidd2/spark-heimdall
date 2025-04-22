@@ -94,7 +94,7 @@ func (s *Server) setupRouter() http.Handler {
 	mux.Handle("/", s.spaHandler())
 
 	// Apply middleware
-	return logMiddleware(mux)
+	return logMiddleware(corsMiddleware(mux))
 }
 
 // spaHandler handles serving the SPA and static files
@@ -164,8 +164,8 @@ func (s *Server) handleDevices(w http.ResponseWriter, r *http.Request) {
 		//	}
 		//	dev.Password = encryptedPwd
 		//}
-
-		if err := s.configFile.AddDevice(dev); err != nil {
+		newDev, err := s.configFile.AddDevice(dev)
+		if err != nil {
 			logger.Error("Error adding device").WithError(err).Send()
 			s.respondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -173,7 +173,7 @@ func (s *Server) handleDevices(w http.ResponseWriter, r *http.Request) {
 
 		s.respondWithJSON(w, http.StatusCreated, APIResponse{
 			Success: true,
-			Data:    dev,
+			Data:    newDev,
 		})
 
 	default:
@@ -555,6 +555,19 @@ func logMiddleware(next http.Handler) http.Handler {
 			WithField("duration", duration.Milliseconds()).
 			WithField("ip", r.RemoteAddr).
 			Send()
+	})
+}
+
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, DELETE, PUT")
+		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding")
+		if r.Method == "OPTIONS" {
+			return
+		}
+
+		next.ServeHTTP(w, r)
 	})
 }
 

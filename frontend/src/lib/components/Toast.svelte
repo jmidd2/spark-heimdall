@@ -16,7 +16,6 @@
     // Automatically hide the toast after the specified duration
     $effect(() => {
         if (duration > 0) {
-            console.log('setting timeout');
             const timer = setTimeout(() => {
                 isVisible = false;
             }, duration);
@@ -100,12 +99,12 @@
 
     .toast-icon {
         padding: 0;
-        margin: 0.2rem 0 0 0;
+        margin: 0.1rem 0 0 0;
     }
 
     .toast-content {
-        padding: 0.2rem 0 0 0;
-        margin: 0;
+        padding: 0;
+        margin: 0 0.75rem;
         text-align: center;
     }
 

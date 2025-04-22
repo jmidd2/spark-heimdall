@@ -145,7 +145,7 @@ class ApiClient {
    * Fetches all devices from the server
    */
   async getDevices(): Promise<Device[]> {
-    const response = await this.getFetch<Device[]>('devices', '`Failed to fetch devices')
+    const response = await this.getFetch<Device[]>('devices', 'Failed to fetch devices')
 
     return response || [];
   }
@@ -154,7 +154,7 @@ class ApiClient {
    * Adds a new device
    */
   async addDevice(device: Omit<Device, 'id'>): Promise<Device> {
-    return await this.postFetch<Device>( 'devices', device, '`Failed to add device' )
+    return await this.postFetch<Device>( 'devices', device, 'Failed to add device' )
   }
 
   /**
@@ -168,7 +168,7 @@ class ApiClient {
    * Deletes a device
    */
   async deleteDevice(id: string): Promise<void> {
-    await this.deleteFetch(`devices/${id}`, undefined, '`Failed to delete device');
+    await this.deleteFetch(`devices/${id}`, undefined, 'Failed to delete device');
   }
 
   /**
@@ -189,14 +189,14 @@ class ApiClient {
    * Connects to a remote device
    */
   async connectToDevice(id: string): Promise<void> {
-    await this.postFetch(`connect/${id}`, undefined, '`Failed to connect to device');
+    await this.postFetch(`connect/${id}`, undefined, 'Failed to connect to device');
   }
 
   /**
    * Disconnects from the current remote connection
    */
   async disconnect(): Promise<void> {
-    await this.postFetch('disconnect', undefined, '`Failed to disconnect');
+    await this.postFetch('disconnect', undefined, 'Failed to disconnect');
   }
 }
 

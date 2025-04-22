@@ -225,7 +225,7 @@
             text-align: right;
         }
 
-        .card-actions {
+        .card-header-actions {
             display: flex;
             gap: 10px;
         }
@@ -266,7 +266,7 @@
 <div class="card {{if eq .ID $.CurrentlyPlaying}}connected{{end}}">
     <div class="card-header">
         <h3 class="card-title">{{.Name}}</h3>
-        <div class="card-actions">
+        <div class="card-header-actions">
             <button class="btn btn-secondary edit-pc-btn" data-id="{{.ID}}">Edit</button>
             <button class="btn btn-danger delete-pc-btn" data-id="{{.ID}}">Delete</button>
         </div>

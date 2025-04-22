@@ -90,6 +90,7 @@
 
   async function handleDeviceSave(device: Device) {
     try {
+      console.log('add or update', device)
       if (device.id) {
         // Update existing device
         const updated = await api.updateDevice(device);
@@ -98,6 +99,7 @@
       } else {
         // Add new device
         const added = await api.addDevice(device);
+        console.log('addded', added)
         devices = [...devices, added];
         toastMessage = 'Device added successfully';
       }
