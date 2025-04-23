@@ -96,16 +96,14 @@ function handleOpenSettings() {
 
 async function handleDeviceSave(device: Device) {
   try {
-    console.log('add or update', device);
     if (device.id) {
       // Update existing device
       const updated = await api.updateDevice(device);
       devices = devices.map(d => (d.id === device.id ? updated : d));
       toastMessage = 'Device updated successfully';
     } else {
-      // Add new device
+      // Add a new device
       const added = await api.addDevice(device);
-      console.log('addded', added);
       devices = [...devices, added];
       toastMessage = 'Device added successfully';
     }
@@ -127,7 +125,8 @@ function clearError() {
 
 <main class="container">
     <header>
-        <h1>Heimdall - Remote Connection Manager</h1>
+        <h1>Heimdall</h1>
+        <h2 class="subtitle">Remote View Connection Manager</h2>
         <div class="actions">
             <button onclick={handleAddDevice} class="btn btn-primary">Add Device</button>
             <button onclick={handleOpenSettings} class="btn btn-secondary">Settings</button>
@@ -207,6 +206,17 @@ function clearError() {
         justify-content: space-between;
         align-items: center;
         margin-bottom: 1.5rem;
+
+        h1, h2 {
+            margin: 0;
+            padding: 0;
+            line-height: 1;
+        }
+
+        h2.subtitle {
+            color: #6c757d;
+            margin-bottom: 1rem;
+        }
 
         .actions {
             margin: 0.5rem 0 0 0;

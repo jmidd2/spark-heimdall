@@ -10,7 +10,6 @@ import type {
 function isApiError(
   json: ApiResponse<unknown>
 ): json is { success: false; error: string } {
-  console.log('isApiError', !(json as ApiResponse<unknown>).success);
   return !(json as ApiResponse<unknown>).success;
 }
 
@@ -63,7 +62,6 @@ class ApiClient {
    */
   private async checkResponseWithData<T>(response: Response): Promise<T> {
     const json: ApiResponse<T> = await response.json();
-    console.log(json);
     if (isApiError(json) && !hasData<T>(json)) {
       throw new Error(json.error);
     }
@@ -79,7 +77,7 @@ class ApiClient {
     response: Response
   ): Promise<ApiResponseNoData> {
     const json: ApiResponseNoData = await response.json();
-    console.log(json);
+
     if (isApiError(json)) {
       throw new Error(json.error);
     }
@@ -108,7 +106,6 @@ class ApiClient {
       );
     }
 
-    console.log(response);
     return await this.checkResponseWithData(response);
   }
 

@@ -19,16 +19,7 @@ let {
   showModal = $bindable(),
 }: DeviceModalProps = $props();
 
-// biome-ignore lint/style/useConst: <explanation>
-let dialog = $state<HTMLDialogElement | undefined>();
-
-$effect(() => {
-  if (showModal) dialog?.showModal();
-  if (!showModal) dialog?.close();
-});
-
-// Local state using Svelte 5 runes
-const formData = $state<Device>({
+const formDataDefaults: Device = {
   id: '',
   name: '',
   ip_address: '',
@@ -39,7 +30,10 @@ const formData = $state<Device>({
   full_screen: true,
   description: '',
   screen: '',
-});
+};
+
+// Local state using Svelte 5 runes
+let formData = $state<Device>(formDataDefaults);
 
 let errors = $state<Record<string, string>>({});
 
@@ -59,16 +53,7 @@ $effect(() => {
     formData.screen = device.screen || '';
   } else {
     // Adding new device
-    formData.id = '';
-    formData.name = '';
-    formData.ip_address = '';
-    formData.protocol = 'vnc';
-    formData.port = 0;
-    formData.username = '';
-    formData.password = '';
-    formData.full_screen = true;
-    formData.description = '';
-    formData.screen = '';
+    formData = formDataDefaults;
   }
 });
 
@@ -95,6 +80,10 @@ function validateForm(): boolean {
   return Object.keys(newErrors).length === 0;
 }
 
+function clearForm() {
+  formData = formDataDefaults;
+}
+
 async function handleSubmit() {
   if (validateForm()) {
     await onSave({
@@ -105,6 +94,7 @@ async function handleSubmit() {
           ? Number.parseInt(formData.port as string, 10) || 0
           : formData.port,
     });
+    clearForm();
   }
 }
 </script>
