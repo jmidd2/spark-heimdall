@@ -85,7 +85,7 @@
   "overrides": [
     {
       "include": [
-        "*.svelte",
+        "*.svelte"
       ],
       "linter": {
         "rules": {
