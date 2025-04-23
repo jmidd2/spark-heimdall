@@ -82,6 +82,7 @@ function validateForm(): boolean {
 
 function clearForm() {
   formData = formDataDefaults;
+  errors = {};
 }
 
 async function handleSubmit() {
@@ -97,10 +98,15 @@ async function handleSubmit() {
     clearForm();
   }
 }
+
+function handleClose() {
+  clearForm();
+  onClose();
+}
 </script>
 
 <Modal title={device ? 'Edit Device' : 'Add New Device'} showModal={showModal} onSubmit={handleSubmit}
-       onClose={onClose}>
+       onClose={handleClose}>
     <input type="hidden" name="id" bind:value={formData.id}/>
     <div class="form-group">
         <label for="name">Name</label>

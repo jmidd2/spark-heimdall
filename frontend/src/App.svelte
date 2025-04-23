@@ -128,7 +128,7 @@ function clearError() {
         <h1>Heimdall</h1>
         <h2 class="subtitle">Remote View Connection Manager</h2>
         <div class="actions">
-            <button onclick={handleAddDevice} class="btn btn-primary">Add Device</button>
+            <button onclick={handleAddDevice} class="btn btn-success">Add Device</button>
             <button onclick={handleOpenSettings} class="btn btn-secondary">Settings</button>
         </div>
     </header>
@@ -197,7 +197,7 @@ function clearError() {
 
 <style>
     .container {
-        max-width: 1200px;
+        max-width: var(--heimdall-container-width);
         margin: 0 auto;
     }
 
@@ -205,7 +205,7 @@ function clearError() {
         display: block;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 1.5rem;
+        margin-bottom: var(--heimdall-spacing-xl);
 
         h1, h2 {
             margin: 0;
@@ -214,14 +214,13 @@ function clearError() {
         }
 
         h2.subtitle {
-            color: #6c757d;
-            margin-bottom: 1rem;
+            margin-bottom: var(--heimdall-spacing-lg);
         }
 
         .actions {
-            margin: 0.5rem 0 0 0;
+            margin: var(--heimdall-spacing-sm) 0 0 0;
             display: flex;
-            gap: 0.5rem;
+            gap: var(--heimdall-spacing-sm);
             flex-wrap: wrap;
         }
     }
@@ -230,31 +229,31 @@ function clearError() {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 0.75rem 1rem;
-        background-color: #1b1e1f;
-        border: 1px solid #262a2b;
-        border-radius: 4px;
-        margin-bottom: 1.5rem;
+        padding: var(--heimdall-spacing-md) var(--heimdall-spacing-lg);
+        background-color: var(--heimdall-bg-card);
+        border: 1px solid var(--heimdall-border-color);
+        border-radius: var(--heimdall-rounded);
+        margin-bottom: var(--heimdall-spacing-xl);
 
         &.connected {
-            background-color: #1a3e29;
-            border-color: #245931;
+            background-color: var(--heimdall-connected-bg);
+            border-color: var(--heimdall-connected-border);
         }
     }
 
     .loading {
         text-align: center;
-        padding: 2rem;
-        color: #aec2d3;
+        padding: var(--heimdall-spacing-2xl);
+        color: var(--heimdall-text-heading);
     }
 
     .error {
-        background-color: #482121;
-        border: 1px solid #692929;
-        color: #f5c2c2;
-        padding: 0.75rem 1rem;
-        border-radius: 4px;
-        margin-bottom: 1.5rem;
+        background-color: var(--heimdall-error-bg);
+        border: 1px solid var(--heimdall-error-border);
+        color: var(--heimdall-error-text);
+        padding: var(--heimdall-spacing-md) var(--heimdall-spacing-lg);
+        border-radius: var(--heimdall-rounded);
+        margin-bottom: var(--heimdall-spacing-xl);
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -263,20 +262,20 @@ function clearError() {
     .btn-close {
         background: none;
         border: none;
-        color: #f5c2c2;
-        font-size: 1.25rem;
+        color: var(--heimdall-error-text);
+        font-size: var(--heimdall-font-size-xl);
         cursor: pointer;
     }
 
     .empty-state {
         text-align: center;
-        padding: 3rem;
-        background-color: #1b1e1f;
-        border: 1px solid #262a2b;
-        border-radius: 4px;
+        padding: var(--heimdall-spacing-3xl);
+        background-color: var(--heimdall-bg-card);
+        border: 1px solid var(--heimdall-border-color);
+        border-radius: var(--heimdall-rounded);
 
         p {
-            margin: 0 0 1rem 0;
+            margin: 0 0 var(--heimdall-spacing-lg) 0;
         }
     }
 </style>

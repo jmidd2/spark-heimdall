@@ -32,6 +32,7 @@ function handleClose() {
 }
 
 let isSaving = $state(false);
+
 async function handleSubmit(e: SubmitEvent) {
   e.preventDefault();
   isSaving = true;
@@ -50,7 +51,7 @@ async function handleSubmit(e: SubmitEvent) {
         </div>
         <div class="modal-content">
             <form onsubmit={handleSubmit}>
-            {@render children()}
+                {@render children()}
 
                 <div class="form-actions">
                     <div class="btn-group">
@@ -70,3 +71,65 @@ async function handleSubmit(e: SubmitEvent) {
         </div>
     </div>
 </dialog>
+
+<style>
+    dialog {
+        border-radius: var(--heimdall-rounded);
+        border: none;
+        padding: 0;
+        margin: auto;
+        background-color: var(--heimdall-bg-modal);
+        min-width: var(--heimdall-modal-width);
+        max-width: var(--heimdall-modal-width);
+        height: var(--heimdall-modal-height);
+
+        &::backdrop {
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--heimdall-spacing-lg);
+            border-bottom: 1px solid var(--heimdall-border-color);
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: var(--heimdall-text-heading);
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: var(--heimdall-font-size-2xl);
+            color: var(--heimdall-text-secondary);
+            cursor: pointer;
+        }
+
+        form {
+            padding: var(--heimdall-spacing-lg);
+        }
+
+        .form-actions {
+            border-top: 1px solid var(--heimdall-border-color);
+            display: block;
+            gap: var(--heimdall-spacing-sm);
+
+            & > :not(:last-child) {
+                border-top-width: 0;
+                border-bottom-width: 1px;
+                border-color: var(--heimdall-border-color);
+                border-style: solid;
+                border-left-style: none;
+                border-right-style: none;
+            }
+
+            .btn-group {
+                padding-top: var(--heimdall-spacing-md);
+                padding-bottom: var(--heimdall-spacing-md);
+            }
+        }
+    }
+</style>

@@ -101,29 +101,29 @@ const deviceGroups = $derived(
 
 <style>
     .device-list {
-        margin: 1rem 0;
+        margin: var(--heimdall-spacing-lg) 0;
     }
 
     .group {
-        margin-bottom: 2rem;
+        margin-bottom: var(--heimdall-spacing-2xl);
     }
 
     .group-title {
-        color: #aec2d3;
-        font-size: 1.2rem;
-        margin-bottom: 1rem;
-        padding-bottom: 0.5rem;
-        border-bottom: 1px solid #262a2b;
+        color: var(--heimdall-text-heading);
+        font-size: var(--heimdall-font-size-xl);
+        margin-bottom: var(--heimdall-spacing-lg);
+        padding-bottom: var(--heimdall-spacing-sm);
+        border-bottom: 1px solid var(--heimdall-border-color);
     }
 
     .cards {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-        gap: 1rem;
+        gap: var(--heimdall-spacing-lg);
     }
 
     /* Responsive adjustments */
-    @media (max-width: 768px) {
+    @media (max-width: var(--heimdall-breakpoint-mobile)) {
         .cards {
             grid-template-columns: 1fr;
         }

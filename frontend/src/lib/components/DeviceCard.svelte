@@ -68,16 +68,16 @@ const handleDelete = async () => {
 <style>
     .card {
         overflow: hidden;
-        border: 1px solid #262a2b;
-        border-radius: 4px;
-        padding: 15px;
-        margin-bottom: 20px;
-        background-color: #1b1e1f;
+        border: 1px solid var(--heimdall-border-color);
+        border-radius: var(--heimdall-rounded);
+        padding: var(--heimdall-spacing-lg);
+        margin-bottom: var(--heimdall-spacing-xl);
+        background-color: var(--heimdall-bg-card);
         display: grid;
         grid-template-columns: 1fr;
 
         &:hover {
-            background-color: #323539;
+            background-color: var(--heimdall-bg-card-hover);
         }
     }
 
@@ -86,11 +86,11 @@ const handleDelete = async () => {
         grid-template-columns: 2fr 1fr;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 0.5rem;
+        margin-bottom: var(--heimdall-spacing-sm);
 
         h3 {
             margin: 0;
-            font-size: 1.2rem;
+            font-size: var(--heimdall-font-size-xl);
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
@@ -98,16 +98,15 @@ const handleDelete = async () => {
 
         .card-header-actions {
             display: flex;
-            gap: 0.5rem;
-            margin-left: 0.5rem;
+            gap: var(--heimdall-spacing-sm);
+            margin-left: var(--heimdall-spacing-sm);
             justify-content: flex-end;
 
             .btn {
-                font-size: 0.75rem;
+                font-size: var(--heimdall-font-size-xs);
             }
         }
     }
-
 
     .card-content {
         display: flex;
@@ -115,31 +114,30 @@ const handleDelete = async () => {
         justify-content: space-between;
 
         .badge {
-            border-radius: 9999px;
+            border-radius: var(--heimdall-rounded-full);
             border: 1px solid;
-            padding: 0.125rem 0.5rem;
-            font-size: 0.75rem;
+            padding: calc(var(--heimdall-spacing-xs) / 2) var(--heimdall-spacing-sm);
+            font-size: var(--heimdall-font-size-xs);
 
             &.vnc {
-                border-color: #1a3e29;
-                background-color: #49a129;
+                border-color: var(--heimdall-badge-vnc-border);
+                background-color: var(--heimdall-badge-vnc-bg);
             }
 
             &.rdp {
-                border-color: #6c757d;
-                background-color: #d9534f;
+                border-color: var(--heimdall-badge-rdp-border);
+                background-color: var(--heimdall-badge-rdp-bg);
             }
         }
 
         .card-description {
-            color: #939faa;
-            font-size: 0.9rem;
-            margin-top: 5px;
-
+            color: var(--heimdall-text-muted);
+            font-size: var(--heimdall-font-size-sm);
+            margin-top: var(--heimdall-spacing-xs);
         }
 
         .card-actions {
-            margin-top: 0.75rem;
+            margin-top: var(--heimdall-spacing-md);
         }
     }
 
