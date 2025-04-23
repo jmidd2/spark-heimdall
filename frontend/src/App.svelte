@@ -6,7 +6,6 @@ import DeviceList from '$lib/components/DeviceList.svelte';
 // biome-ignore lint/correctness/noUnusedImports: <explanation>
 import DeviceModal from '$lib/components/DeviceModal.svelte';
 // biome-ignore lint/correctness/noUnusedImports: <explanation>
-import Modal from '$lib/components/Modal.svelte';
 // biome-ignore lint/correctness/noUnusedImports: <explanation>
 import SettingsModal from '$lib/components/SettingsModal.svelte';
 // biome-ignore lint/correctness/noUnusedImports: <explanation>
@@ -134,7 +133,7 @@ function clearError() {
     </header>
 
     <!-- Status Bar -->
-<!--    <div class="status-bar {currentlyConnectedId ? 'connected' : ''}">-->
+    <!--    <div class="status-bar {currentlyConnectedId ? 'connected' : ''}">-->
     <div class={['status-bar', {connected: currentlyConnectedId }]}>
         {#if currentlyConnectedId}
       <span>
@@ -233,7 +232,7 @@ function clearError() {
         background-color: var(--heimdall-bg-card);
         border: 1px solid var(--heimdall-border-color);
         border-radius: var(--heimdall-rounded);
-        margin-bottom: var(--heimdall-spacing-xl);
+        margin-bottom: var(--heimdall-spacing-lg);
 
         &.connected {
             background-color: var(--heimdall-connected-bg);

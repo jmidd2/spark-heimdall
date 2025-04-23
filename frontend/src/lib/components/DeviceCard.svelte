@@ -1,43 +1,26 @@
 <script lang="ts">
-import { api } from '$lib/api';
 import type { Device } from '$lib/types';
 
 type DeviceCardProps = {
   device: Device;
-  isConnected: boolean;
-  onConnect: (device: Device) => void;
-  onEdit: (device: Device) => void;
-  onDelete: () => Promise<void>;
+  connectedId: string | null;
+  onConnect: (device: Device) => Promise<void>;
+  onEdit: (device: Device) => Promise<void>;
+  onDelete: (deviceId: string) => Promise<void>;
 };
 
-const {
-  device,
-  isConnected = false,
-  onDelete,
-  onEdit,
-  onConnect,
-}: DeviceCardProps = $props();
+const { device, onDelete, onEdit, connectedId, onConnect }: DeviceCardProps =
+  $props();
 
-const handleConnect = async () => {
-  try {
-    if (isConnected) {
-      await api.disconnect();
-    } else {
-      await api.connectToDevice(device.id);
-      onConnect(device);
-    }
-    // Reload page to reflect connection state
-    window.location.reload();
-  } catch (error) {
-    alert(
-      `Connection error: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
-};
+const isConnected = $derived(device.id === connectedId);
 
-const handleDelete = async () => {
-  await onDelete();
-};
+async function handleConnect() {
+  await onConnect(device);
+}
+
+async function handleDelete() {
+  await onDelete(device.id);
+}
 </script>
 
 <div class="card {isConnected ? 'connected' : ''}">

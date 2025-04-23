@@ -4,37 +4,37 @@ import type { Device } from '$lib/types';
 // biome-ignore lint/correctness/noUnusedImports: <explanation>
 import DeviceCard from './DeviceCard.svelte';
 
-// Props
-// export let devices: Device[] = [];
-// export let connectedId: string | null = null;
-// export let onConnect: (device: Device) => void;
-// export let onEdit: (device: Device) => void;
-// export let onDelete: (deviceId: string) => void;
-//
-// // Optional grouping
-// export let groupByProtocol: boolean = false;
-
 type DeviceListProps = {
   devices: Device[];
   connectedId: string | null;
-  onConnect: (device: Device) => void;
-  onEdit: (device: Device) => void;
-  onDelete: (deviceId: string) => void;
+  onConnect: (device: Device) => Promise<void>;
+  onEdit: (device: Device) => Promise<void>;
+  onDelete: (deviceId: string) => Promise<void>;
   groupByProtocol?: boolean;
 };
 
-const {
+let {
   devices = [],
   connectedId = null,
   onConnect,
   onEdit,
   onDelete,
-  groupByProtocol,
+  groupByProtocol = false,
 }: DeviceListProps = $props();
+
+let totalCount = $derived(devices.length);
 
 // Computed properties
 const sortedDevices = $derived(
   [...devices].sort((a, b) => a.name.localeCompare(b.name))
+);
+
+let filter: Device['protocol'] | 'none' = $state('none');
+
+const filteredDevices = $derived(
+  filter !== 'none'
+    ? [...sortedDevices].filter(d => d.protocol === filter)
+    : [...sortedDevices]
 );
 
 const deviceGroups = $derived(
@@ -45,63 +45,99 @@ const deviceGroups = $derived(
       }
     : { all: sortedDevices }
 );
+
+function handleChange() {
+  if (groupByProtocol) filter = 'none';
+}
 </script>
 
+{#snippet deviceCard( d: Device )}
+    <DeviceCard
+            device={d}
+            connectedId={connectedId}
+            onConnect={onConnect}
+            onEdit={onEdit}
+            onDelete={onDelete}
+    />
+{/snippet}
+
+{#snippet cardGroup(devices: Device[], title: string)}
+    <div class="group">
+        <h3 class="group-title">
+            {title}
+        </h3>
+        <div class="cards">
+            {#each devices as device (device.id)}
+                {@render deviceCard( device )}
+            {/each}
+        </div>
+    </div>
+{/snippet}
+
 <div class="device-list">
+    <div class="filter-row">
+        <div style="display: flex; align-items: center; gap: var(--heimdall-spacing-sm);)">
+            <label aria-disabled={groupByProtocol} for="filterByProtocol">Filter:</label>
+            <select bind:value={filter} id="filterByProtocol" disabled={groupByProtocol}>
+                <option value="none">None</option>
+                <option value="vnc">VNC</option>
+                <option value="rdp">RDP</option>
+            </select>
+        </div>
+        <div class="checkbox-group">
+            <input type="checkbox" bind:checked={groupByProtocol} id="groupByProtocol" class="size-lg"
+                   onchange={handleChange}>
+            <label for="groupByProtocol" style="margin: 0">Group By Protocol</label>
+        </div>
+    </div>
     {#if groupByProtocol}
         <!-- Grouped by protocol -->
         {#if deviceGroups.vnc && deviceGroups.vnc.length > 0}
-            <div class="group">
-                <h3 class="group-title">VNC Connections</h3>
-                <div class="cards">
-                    {#each deviceGroups.vnc as device (device.id)}
-                        <DeviceCard
-                                {device}
-                                isConnected={device.id === connectedId}
-                                onConnect={() => onConnect(device)}
-                                onEdit={() => onEdit(device)}
-                                onDelete={() => onDelete(device.id)}
-                        />
-                    {/each}
-                </div>
-            </div>
+            {@render cardGroup(deviceGroups.vnc, 'VNC Connections')}
         {/if}
 
         {#if deviceGroups.rdp && deviceGroups.rdp.length > 0}
-            <div class="group">
-                <h3 class="group-title">RDP Connections</h3>
-                <div class="cards">
-                    {#each deviceGroups.rdp as device (device.id)}
-                        <DeviceCard
-                                {device}
-                                isConnected={device.id === connectedId}
-                                onConnect={() => onConnect(device)}
-                                onEdit={() => onEdit(device)}
-                                onDelete={() => onDelete(device.id)}
-                        />
-                    {/each}
-                </div>
-            </div>
+            {@render cardGroup(deviceGroups.rdp, 'RDP Connections')}
         {/if}
     {:else}
         <!-- Flat list -->
-        <div class="cards">
-            {#each sortedDevices as device (device.id)}
-                <DeviceCard
-                        {device}
-                        isConnected={device.id === connectedId}
-                        onConnect={() => onConnect(device)}
-                        onEdit={() => onEdit(device)}
-                        onDelete={() => onDelete(device.id)}
-                />
-            {/each}
-        </div>
+        {@render cardGroup(filteredDevices, filter === 'none' ? 'Connections' : `${filter.toUpperCase()} Connections`)}
+
+        {#if ( filter !== 'none' )}
+            <p>Showing {filteredDevices.length} of {totalCount} devices</p>
+        {/if}
     {/if}
 </div>
 
 <style>
     .device-list {
-        margin: var(--heimdall-spacing-lg) 0;
+        /*margin: var(--heimdall-spacing-lg) 0;*/
+
+        .filter-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--heimdall-spacing-sm);
+            margin-bottom: var(--heimdall-spacing-lg);
+            font-size: var(--heimdall-font-size-sm);
+            border-bottom: 1px solid var(--heimdall-border-color);
+            padding-bottom: var(--heimdall-spacing-sm);
+
+            input, select {
+                &[disabled] {
+                    background-color: var(--heimdall-bg-cardg);
+                    color: var(--heimdall-text-muted);
+                }
+            }
+
+            label {
+                margin: 0;
+
+                &[aria-disabled="true"] {
+                    color: var(--heimdall-text-muted);
+                }
+            }
+        }
     }
 
     .group {
