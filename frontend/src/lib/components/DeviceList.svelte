@@ -1,40 +1,50 @@
 <!-- frontend/src/lib/components/DeviceList.svelte -->
 <script lang="ts">
-  import type { Device } from '$lib/types';
-  import DeviceCard from './DeviceCard.svelte';
+import type { Device } from '$lib/types';
+// biome-ignore lint/correctness/noUnusedImports: <explanation>
+import DeviceCard from './DeviceCard.svelte';
 
-  // Props
-  // export let devices: Device[] = [];
-  // export let connectedId: string | null = null;
-  // export let onConnect: (device: Device) => void;
-  // export let onEdit: (device: Device) => void;
-  // export let onDelete: (deviceId: string) => void;
-  //
-  // // Optional grouping
-  // export let groupByProtocol: boolean = false;
+// Props
+// export let devices: Device[] = [];
+// export let connectedId: string | null = null;
+// export let onConnect: (device: Device) => void;
+// export let onEdit: (device: Device) => void;
+// export let onDelete: (deviceId: string) => void;
+//
+// // Optional grouping
+// export let groupByProtocol: boolean = false;
 
-  type DeviceListProps = {
-      devices: Device[];
-      connectedId: string | null;
-      onConnect: (device: Device) => void;
-      onEdit: (device: Device) => void;
-      onDelete: (deviceId: string) => void;
-      groupByProtocol?: boolean;
-  }
+type DeviceListProps = {
+  devices: Device[];
+  connectedId: string | null;
+  onConnect: (device: Device) => void;
+  onEdit: (device: Device) => void;
+  onDelete: (deviceId: string) => void;
+  groupByProtocol?: boolean;
+};
 
-  const { devices = [], connectedId = null, onConnect, onEdit, onDelete, groupByProtocol }: DeviceListProps = $props();
+const {
+  devices = [],
+  connectedId = null,
+  onConnect,
+  onEdit,
+  onDelete,
+  groupByProtocol,
+}: DeviceListProps = $props();
 
-  $inspect(devices)
+// Computed properties
+const sortedDevices = $derived(
+  [...devices].sort((a, b) => a.name.localeCompare(b.name))
+);
 
-  // Computed properties
-  const sortedDevices = $derived([...devices].sort((a, b) => a.name.localeCompare(b.name)));
-
-  const deviceGroups = $derived(groupByProtocol
-                    ? {
-      vnc: sortedDevices.filter(d => d.protocol === 'vnc'),
-      rdp: sortedDevices.filter(d => d.protocol === 'rdp')
-    }
-                    : { all: sortedDevices });
+const deviceGroups = $derived(
+  groupByProtocol
+    ? {
+        vnc: sortedDevices.filter(d => d.protocol === 'vnc'),
+        rdp: sortedDevices.filter(d => d.protocol === 'rdp'),
+      }
+    : { all: sortedDevices }
+);
 </script>
 
 <div class="device-list">

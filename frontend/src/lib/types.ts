@@ -90,13 +90,24 @@ export type ApiResponse<T> = {
   error?: string;
 };
 
+/**
+ * API response format
+ */
+export type ApiResponseNoData = {
+  /** Whether the request was successful */
+  success: boolean;
+
+  /** Error message (if unsuccessful) */
+  error?: string;
+};
 
 /**
  * API Endpoints
  */
-export type ApiEndpoint = `connect`
+export type ApiEndpoint =
+  | `connect`
   | `connect/${string}`
   | 'disconnect'
   | 'devices'
   | `devices/${string}`
-  | 'config'
+  | 'config';

@@ -40,6 +40,7 @@ let formData = $state<AppConfig>({
 
 let isLoading = $state(true);
 let error = $state<string | null>(null);
+let success = $state<boolean | null>(null);
 
 // Load current settings when component mounts
 onMount(async () => {
@@ -56,6 +57,16 @@ onMount(async () => {
     error = err instanceof Error ? err.message : 'Failed to load settings';
   } finally {
     isLoading = false;
+  }
+});
+
+$effect(() => {
+  if (success) {
+    const timeout = setTimeout(() => {
+      success = false;
+    }, 3000);
+
+    return () => clearTimeout(timeout);
   }
 });
 
@@ -77,8 +88,14 @@ async function handleSubmit() {
   }
 
   try {
-    await api.updateConfig(formData);
+    const result = await api.updateConfig(formData);
+    if (result.success) {
+      success = true;
+    } else {
+      error = 'Failed to save settings';
+    }
   } catch (err) {
+    console.error(err);
     error = err instanceof Error ? err.message : 'Failed to save settings';
   }
 }
@@ -184,6 +201,9 @@ function handleRestartServer() {
 
         {#if error}
             <div class="error-message">{error}</div>
+        {/if}
+        {#if success}
+            <div class="success-message">Settings saved!</div>
         {/if}
     {/if}
 </Modal>

@@ -41,8 +41,6 @@ const formData = $state<Device>({
   screen: '',
 });
 
-$inspect(formData);
-
 let errors = $state<Record<string, string>>({});
 
 // Initialize form data when component mounts or device prop changes
