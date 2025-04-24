@@ -1,53 +1,25 @@
 <!-- frontend/src/lib/components/DeviceList.svelte -->
 <script lang="ts">
+import { devices } from '$lib/store/devices.svelte';
 import type { Device } from '$lib/types';
-// biome-ignore lint/correctness/noUnusedImports: <explanation>
 import DeviceCard from './DeviceCard.svelte';
 
 type DeviceListProps = {
-  devices: Device[];
   connectedId: string | null;
   onConnect: (device: Device) => Promise<void>;
   onEdit: (device: Device) => Promise<void>;
   onDelete: (deviceId: string) => Promise<void>;
-  groupByProtocol?: boolean;
 };
 
 let {
-  devices = [],
   connectedId = null,
   onConnect,
   onEdit,
   onDelete,
-  groupByProtocol = false,
 }: DeviceListProps = $props();
 
-let totalCount = $derived(devices.length);
-
-// Computed properties
-const sortedDevices = $derived(
-  [...devices].sort((a, b) => a.name.localeCompare(b.name))
-);
-
-let filter: Device['protocol'] | 'none' = $state('none');
-
-const filteredDevices = $derived(
-  filter !== 'none'
-    ? [...sortedDevices].filter(d => d.protocol === filter)
-    : [...sortedDevices]
-);
-
-const deviceGroups = $derived(
-  groupByProtocol
-    ? {
-        vnc: sortedDevices.filter(d => d.protocol === 'vnc'),
-        rdp: sortedDevices.filter(d => d.protocol === 'rdp'),
-      }
-    : { all: sortedDevices }
-);
-
 function handleChange() {
-  if (groupByProtocol) filter = 'none';
+  if (devices.groupByProtocol) devices.protocolFilter = 'none';
 }
 </script>
 
@@ -61,7 +33,7 @@ function handleChange() {
     />
 {/snippet}
 
-{#snippet cardGroup(devices: Device[], title: string)}
+{#snippet cardGroup( devices: Device[], title: string )}
     <div class="group">
         <h3 class="group-title">
             {title}
@@ -77,34 +49,34 @@ function handleChange() {
 <div class="device-list">
     <div class="filter-row">
         <div style="display: flex; align-items: center; gap: var(--heimdall-spacing-sm);)">
-            <label aria-disabled={groupByProtocol} for="filterByProtocol">Filter:</label>
-            <select bind:value={filter} id="filterByProtocol" disabled={groupByProtocol}>
+            <label aria-disabled={devices.groupByProtocol} for="filterByProtocol">Filter:</label>
+            <select bind:value={devices.protocolFilter} id="filterByProtocol" disabled={devices.groupByProtocol}>
                 <option value="none">None</option>
                 <option value="vnc">VNC</option>
                 <option value="rdp">RDP</option>
             </select>
         </div>
         <div class="checkbox-group">
-            <input type="checkbox" bind:checked={groupByProtocol} id="groupByProtocol" class="size-lg"
+            <input type="checkbox" bind:checked={devices.groupByProtocol} id="groupByProtocol" class="size-lg"
                    onchange={handleChange}>
             <label for="groupByProtocol" style="margin: 0">Group By Protocol</label>
         </div>
     </div>
-    {#if groupByProtocol}
+    {#if devices.groupByProtocol}
         <!-- Grouped by protocol -->
-        {#if deviceGroups.vnc && deviceGroups.vnc.length > 0}
-            {@render cardGroup(deviceGroups.vnc, 'VNC Connections')}
+        {#if devices.vnc && devices.vnc.length > 0}
+            {@render cardGroup( devices.vnc, 'VNC Connections' )}
         {/if}
 
-        {#if deviceGroups.rdp && deviceGroups.rdp.length > 0}
-            {@render cardGroup(deviceGroups.rdp, 'RDP Connections')}
+        {#if devices.rdp && devices.rdp.length > 0}
+            {@render cardGroup( devices.rdp, 'RDP Connections' )}
         {/if}
     {:else}
         <!-- Flat list -->
-        {@render cardGroup(filteredDevices, filter === 'none' ? 'Connections' : `${filter.toUpperCase()} Connections`)}
+        {@render cardGroup( devices.filtered, devices.protocolFilter === 'none' ? 'Connections' : `${ devices.protocolFilter.toUpperCase() } Connections` )}
 
-        {#if ( filter !== 'none' )}
-            <p>Showing {filteredDevices.length} of {totalCount} devices</p>
+        {#if ( devices.protocolFilter !== 'none' )}
+            <p>Showing {devices.count.filtered} of {devices.count.total} devices</p>
         {/if}
     {/if}
 </div>

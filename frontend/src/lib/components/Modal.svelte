@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { Snippet } from 'svelte';
+import { type Snippet, onMount } from 'svelte';
 
 type ModalProps = {
   onClose: () => void;
@@ -26,8 +26,7 @@ $effect(() => {
 });
 
 function handleClose() {
-  showModal = false;
-  dialog?.close();
+  // showModal = false;
   onClose();
 }
 

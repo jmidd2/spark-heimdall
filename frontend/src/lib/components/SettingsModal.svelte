@@ -1,19 +1,19 @@
 <!-- frontend/src/lib/components/SettingsModal.svelte -->
 <script lang="ts">
 import { api } from '$lib/api';
-// biome-ignore lint/correctness/noUnusedImports: <explanation>
 import Modal from '$lib/components/Modal.svelte';
-import type { AppConfig, Device } from '$lib/types';
+import { devices } from '$lib/store/devices.svelte';
+import type { AppConfig } from '$lib/types';
 import { onMount } from 'svelte';
 
 // Props
 type SettingsModalProps = {
-  devices: Device[];
+  // devices: Device[];
   onClose: () => void;
   showModal: boolean;
 };
 let {
-  devices,
+  // devices,
   onClose,
   showModal = $bindable(),
 }: SettingsModalProps = $props();
@@ -184,7 +184,7 @@ function handleRestartServer() {
                             disabled={!formData.connection.auto_start}
                     >
                         <option value="">None</option>
-                        {#each devices as device}
+                        {#each devices.all as device}
                             <option value={device.id}>{device.name}</option>
                         {/each}
                     </select>

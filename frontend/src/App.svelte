@@ -1,22 +1,17 @@
 <!-- src/App.svelte -->
 <script lang="ts">
 import { api } from '$lib/api';
-// biome-ignore lint/correctness/noUnusedImports: <explanation>
 import DeviceList from '$lib/components/DeviceList.svelte';
-// biome-ignore lint/correctness/noUnusedImports: <explanation>
 import DeviceModal from '$lib/components/DeviceModal.svelte';
-// biome-ignore lint/correctness/noUnusedImports: <explanation>
-// biome-ignore lint/correctness/noUnusedImports: <explanation>
 import SettingsModal from '$lib/components/SettingsModal.svelte';
-// biome-ignore lint/correctness/noUnusedImports: <explanation>
 import Toast from '$lib/components/Toast.svelte';
+import { devices } from '$lib/store/devices.svelte';
 import type { Device } from '$lib/types';
 import { onMount } from 'svelte';
 
 // State using Svelte 5 runes
-let devices = $state<Device[]>([]);
 let currentlyConnectedId = $state<string | null>(null);
-let isLoading = $state(true);
+let isLoading = $derived(devices.isLoading);
 let error = $state<string | null>(null);
 let showDeviceModal = $state(false);
 let showSettingsModal = $state(false);
@@ -25,23 +20,21 @@ let toastMessage = $state<string | null>(null);
 
 // Load data on component mount
 onMount(async () => {
-  try {
-    isLoading = true;
-    devices = await api.getDevices();
+  // Check for current connection status
+  // In a real implementation, we would need a way to get the current connection status from the backend
+  // For now, we'll simulate this with a simple message handler
+  window.addEventListener('message', event => {
+    if (event.data.type === 'connection-status') {
+      currentlyConnectedId = event.data.deviceId;
+    }
+  });
 
-    // Check for current connection status
-    // In a real implementation, we would need a way to get the current connection status from the backend
-    // For now, we'll simulate this with a simple message handler
-    window.addEventListener('message', event => {
-      if (event.data.type === 'connection-status') {
-        currentlyConnectedId = event.data.deviceId;
-      }
-    });
-  } catch (err) {
-    error = err instanceof Error ? err.message : 'Failed to load devices';
-  } finally {
-    isLoading = false;
-  }
+  window.addEventListener('keyup', e => {
+    if (e.key === 'Esc' || e.key === 'Escape') {
+      showSettingsModal = false;
+      showDeviceModal = false;
+    }
+  });
 });
 
 // Handle device actions
@@ -61,7 +54,7 @@ async function handleConnect(device: Device) {
   }
 }
 
-async function handleEdit(device: Device) {
+async function handleShowEditModal(device: Device) {
   editingDevice = device;
   showDeviceModal = true;
 }
@@ -72,8 +65,8 @@ async function handleDelete(deviceId: string) {
   }
 
   try {
-    await api.deleteDevice(deviceId);
-    devices = devices.filter(d => d.id !== deviceId);
+    // devices = devices.filter(d => d.id !== deviceId);
+    await devices.delete(deviceId);
     toastMessage = 'Device deleted successfully';
 
     if (currentlyConnectedId === deviceId) {
@@ -84,12 +77,12 @@ async function handleDelete(deviceId: string) {
   }
 }
 
-function handleAddDevice() {
+function handleShowAddModal() {
   editingDevice = null;
   showDeviceModal = true;
 }
 
-function handleOpenSettings() {
+function handleShowSettingsModal() {
   showSettingsModal = true;
 }
 
@@ -97,13 +90,11 @@ async function handleDeviceSave(device: Device) {
   try {
     if (device.id) {
       // Update existing device
-      const updated = await api.updateDevice(device);
-      devices = devices.map(d => (d.id === device.id ? updated : d));
+      await devices.update(device);
       toastMessage = 'Device updated successfully';
     } else {
       // Add a new device
-      const added = await api.addDevice(device);
-      devices = [...devices, added];
+      await devices.add(device);
       toastMessage = 'Device added successfully';
     }
     showDeviceModal = false;
@@ -127,8 +118,8 @@ function clearError() {
         <h1>Heimdall</h1>
         <h2 class="subtitle">Remote View Connection Manager</h2>
         <div class="actions">
-            <button onclick={handleAddDevice} class="btn btn-success">Add Device</button>
-            <button onclick={handleOpenSettings} class="btn btn-secondary">Settings</button>
+            <button onclick={handleShowAddModal} class="btn btn-success">Add Device</button>
+            <button onclick={handleShowSettingsModal} class="btn btn-secondary">Settings</button>
         </div>
     </header>
 
@@ -138,7 +129,7 @@ function clearError() {
         {#if currentlyConnectedId}
       <span>
         Connected to:
-          {devices.find( d => d.id === currentlyConnectedId )?.name || 'Unknown Device'}
+          {devices.search(currentlyConnectedId)?.name || 'Unknown Device'}
       </span>
             <button onclick={() => api.disconnect()} class="btn btn-danger">Disconnect</button>
         {:else}
@@ -160,18 +151,17 @@ function clearError() {
     {/if}
 
     <!-- Device list -->
-    {#if devices.length > 0}
+    {#if devices.filtered.length > 0}
         <DeviceList
-                {devices}
                 connectedId={currentlyConnectedId}
                 onConnect={handleConnect}
-                onEdit={handleEdit}
+                onEdit={handleShowEditModal}
                 onDelete={handleDelete}
         />
     {:else if !isLoading}
         <div class="empty-state">
             <p>No devices configured yet. Add your first device to get started.</p>
-            <button onclick={handleAddDevice} class="btn btn-primary">Add Device</button>
+            <button onclick={handleShowAddModal} class="btn btn-primary">Add Device</button>
         </div>
     {/if}
     <!-- Modals -->
@@ -184,7 +174,6 @@ function clearError() {
 
     <SettingsModal
             bind:showModal={showSettingsModal}
-            devices={devices}
             onClose={handleModalClose}
     />
 
