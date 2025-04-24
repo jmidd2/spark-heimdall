@@ -1,32 +1,18 @@
 <!-- frontend/src/lib/components/Toast.svelte -->
 <script lang="ts">
-type ToastProps = {
-  message: string;
-  type?: 'success' | 'error' | 'info';
+import { toastStore } from '$lib/store/toast.svelte';
+import { fly } from 'svelte/transition';
+
+type ToastContainerProps = {
   duration?: number; // Duration in milliseconds
-  position?: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
 };
 
-// Props
-const {
-  message,
-  type = 'success',
-  duration = 3000,
-  position = 'top-right',
-}: ToastProps = $props();
+const { duration = 3000 }: ToastContainerProps = $props();
 
-// State
 let isVisible = $state(true);
 
-// Automatically hide the toast after the specified duration
 $effect(() => {
-  if (duration > 0) {
-    const timer = setTimeout(() => {
-      isVisible = false;
-    }, duration);
-
-    return () => clearTimeout(timer);
-  }
+  if (duration) toastStore.setDuration(duration);
 });
 
 // Close the toast
@@ -35,7 +21,7 @@ function close() {
 }
 
 // Get icon based on toast type
-function getIcon() {
+function getIcon(type) {
   switch (type) {
     case 'success':
       return `
@@ -64,29 +50,41 @@ function getIcon() {
 }
 </script>
 
-{#if isVisible}
-    <div class="toast toast-{type} toast-{position}">
-        <div class="toast-icon">
-            {@html getIcon()}
-        </div>
-        <div class="toast-content">
-            {message}
-        </div>
-        <button class="toast-close" onclick={close}>
-            <span class="hidden" aria-hidden="true">Close</span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-        </button>
+{#if toastStore.all.length > 0}
+    <div class="toast-container" out:fly={{x: 200}}>
+        {#each toastStore.all as toast, index (toast.id)}
+            <div class="toast toast-{toast.type} toast-{toast.position}" out:fly={{x: 200}}>
+                <div class="toast-icon">
+                    {@html getIcon( toast.type )}
+                </div>
+                <div class="toast-content">
+                    {toast.message}
+                </div>
+                <button class="toast-close" onclick={() => { toastStore.remove(toast.id) }}>
+                    <span class="hidden" aria-hidden="true">Close</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+        {/each}
     </div>
 {/if}
-
 <style>
+    .toast-container {
+        position: absolute;
+        top: 0;
+        right: 0;
+        display: flex;
+        flex-direction: column;
+        gap: var(--heimdall-spacing-lg);
+        padding: var(--heimdall-spacing-lg) var(--heimdall-spacing-lg) 0 0;
+    }
+
     .toast {
         line-height: 1rem;
-        position: fixed;
         padding: var(--heimdall-spacing-md) var(--heimdall-spacing-lg) calc(var(--heimdall-spacing-md) - 0.1rem);
         border-radius: var(--heimdall-rounded);
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -130,7 +128,7 @@ function getIcon() {
 
     .toast-close:hover {
         opacity: 1;
-        background-color: rgba(255,255,255,0.2);
+        background-color: rgba(255, 255, 255, 0.2);
     }
 
     /* Position variants */

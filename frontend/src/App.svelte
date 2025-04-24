@@ -4,8 +4,9 @@ import { api } from '$lib/api';
 import DeviceList from '$lib/components/DeviceList.svelte';
 import DeviceModal from '$lib/components/DeviceModal.svelte';
 import SettingsModal from '$lib/components/SettingsModal.svelte';
-import Toast from '$lib/components/Toast.svelte';
+import ToastContainer from '$lib/components/ToastContainer.svelte';
 import { devices } from '$lib/store/devices.svelte';
+import { toastStore } from '$lib/store/toast.svelte';
 import type { Device } from '$lib/types';
 import { onMount } from 'svelte';
 
@@ -16,7 +17,6 @@ let error = $state<string | null>(null);
 let showDeviceModal = $state(false);
 let showSettingsModal = $state(false);
 let editingDevice = $state<Device | null>(null);
-let toastMessage = $state<string | null>(null);
 
 // Load data on component mount
 onMount(async () => {
@@ -42,11 +42,11 @@ async function handleConnect(device: Device) {
   try {
     if (currentlyConnectedId === device.id) {
       await api.disconnect();
-      toastMessage = `Disconnected from ${device.name}`;
+      toastStore.add(`Disconnected from ${device.name}`);
       currentlyConnectedId = null;
     } else {
       await api.connectToDevice(device.id);
-      toastMessage = `Connected to ${device.name}`;
+      toastStore.add(`Connected to ${device.name}`);
       currentlyConnectedId = device.id;
     }
   } catch (err) {
@@ -67,7 +67,7 @@ async function handleDelete(deviceId: string) {
   try {
     // devices = devices.filter(d => d.id !== deviceId);
     await devices.delete(deviceId);
-    toastMessage = 'Device deleted successfully';
+    toastStore.add('Device deleted successfully');
 
     if (currentlyConnectedId === deviceId) {
       currentlyConnectedId = null;
@@ -91,11 +91,11 @@ async function handleDeviceSave(device: Device) {
     if (device.id) {
       // Update existing device
       await devices.update(device);
-      toastMessage = 'Device updated successfully';
+      toastStore.add('Device updated successfully');
     } else {
       // Add a new device
       await devices.add(device);
-      toastMessage = 'Device added successfully';
+      toastStore.add('Device added successfully');
     }
     showDeviceModal = false;
   } catch (err) {
@@ -178,9 +178,7 @@ function clearError() {
     />
 
     <!-- Toast notifications -->
-    {#if toastMessage}
-        <Toast message={toastMessage}/>
-    {/if}
+        <ToastContainer />
 </main>
 
 <style>
