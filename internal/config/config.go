@@ -1,275 +1,353 @@
 package config
 
 import (
-	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
-	"spark-heimdall/internal/device"
+	"spark-heimdall/internal/logger"
 	"strconv"
+	"strings"
+
+	"github.com/spf13/viper"
 )
 
-// Manager defines the interface for configuration operations
-type Manager interface {
-	load() error
-	save() error
-	Validate() error
-	AddDevice(d device.Device) error
-	UpdateDevice(d device.Device) error
-	DeleteDevice(id string) error
-	GetDevice(id string) (device.Device, bool)
-	Update(config UpdateConfig) error
+// Device represents any connectable device (PC, server, etc.)
+type Device struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	IPAddress   string `json:"ip_address"`
+	Protocol    string `json:"protocol"` // "vnc", "rdp", etc.
+	Port        int    `json:"port"`
+	Username    string `json:"username,omitempty"`
+	Password    string `json:"password,omitempty"`
+	FullScreen  bool   `json:"full_screen"`
+	Description string `json:"description,omitempty"`
+	Screen      string `json:"screen,omitempty"`
 }
 
-type UpdateConfig struct {
-	ListenPort      int    `json:"listen_port"`
-	AutoStart       bool   `json:"auto_start"`
-	AutoStartID     string `json:"auto_start_id"`
-	VncViewer       string `json:"vnc_viewer"`
-	VncPasswordFile string `json:"vnc_password_file"`
-	RdpViewer       string `json:"rdp_viewer"`
-}
-
-// Ensure Config implements Manager
-var _ Manager = (*Config)(nil)
-
-func (c *Config) Update(config UpdateConfig) error {
-	c.ListenPort = config.ListenPort
-	c.AutoStart = config.AutoStart
-	c.AutoStartID = config.AutoStartID
-	c.VncViewer = config.VncViewer
-	c.VncPasswordFile = config.VncPasswordFile
-	c.RdpViewer = config.RdpViewer
-
-	return c.save()
-}
+type Devices []Device
 
 // Config holds the application configuration
 type Config struct {
-	// FilePath is the path to the current configuration file
-	FilePath string `json:"-"`
-	// ListenPort determines the port of the HTTP server
-	ListenPort int `json:"listen_port"`
+	// Server configuration
+	Server struct {
+		Port int `mapstructure:"port"`
+	} `mapstructure:"server"`
 
-	AutoStart   bool   `json:"auto_start"`
-	AutoStartID string `json:"auto_start_id"`
+	// Connection configuration
+	Connection struct {
+		AutoStart   bool   `mapstructure:"auto_start"`
+		AutoStartID string `mapstructure:"auto_start_id"`
+	} `mapstructure:"connection"`
 
-	VncViewer       string `json:"vnc_viewer"`
-	VncPasswordFile string `json:"vnc_password_file"`
-	RdpViewer       string `json:"rdp_viewer"`
+	// Client applications
+	Clients struct {
+		VncViewer       string `mapstructure:"vnc_viewer"`
+		VncPasswordFile string `mapstructure:"vnc_password_file"`
+		RdpViewer       string `mapstructure:"rdp_viewer"`
+	} `mapstructure:"clients"`
 
-	HighestDeviceId string `json:"-"`
-	device.Store
+	// Devices list
+	Devices []Device `mapstructure:"devices"`
+
+	// Security configuration
+	Security struct {
+		KeyFile string `mapstructure:"key_file"`
+	} `mapstructure:"security"`
+
+	// Logger configuration
+	Logging struct {
+		Level  string `mapstructure:"level"`
+		Format string `mapstructure:"format"`
+	} `mapstructure:"logging"`
+
+	// Internal fields
+	configFile string
+	v          *viper.Viper
 }
 
-func NewConfig(path string, vncPasswdFile string) *Config {
-	return &Config{
-		FilePath:        path,
-		ListenPort:      8080,
-		Store:           device.Store{Devices: []device.Device{}},
-		VncPasswordFile: vncPasswdFile,
+// LoadConfig loads the configuration from file, environment variables, and flags
+func LoadConfig(configFlag string) (*Config, error) {
+	v := viper.New()
+
+	// Set default values
+	setDefaults(v)
+
+	// Load configuration from file
+	configFile := configFlag
+	if configFile == "" {
+		configFile = os.Getenv("HEIMDALL_CONFIG")
 	}
-}
-
-// LoadConfigFromFlags loads configuration from flags or environment variables
-func LoadConfigFromFlags() (*Config, error) {
-	configFilePtr := flag.String("config", getEnvString("HEIMDALL_CONFIG", "config.json"), "Path to configuration file")
-	portPtr := flag.Int("port", getEnvInt("HEIMDALL_PORT", 8080), "Port to listen on")
-	vncViewerPtr := flag.String("vnc", getEnvString("HEIMDALL_VNC_VIEWER", "vncviewer"), "VNC viewer executable")
-	vncPasswordFilePtr := flag.String("vnc-password-file", getEnvString("HEIMDALL_VNC_PASSWORD_FILE", fmt.Sprintf("%s/.vnc/passwd", getUserHomeDir())), "VNC password file")
-	rdpViewerPtr := flag.String("rdp", getEnvString("HEIMDALL_RDP_VIEWER", ""), "RDP viewer executable")
-	flag.Parse()
-
-	config := NewConfig(*configFilePtr, *vncPasswordFilePtr)
-
-	// load from file
-	err := config.load()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
+	if configFile == "" {
+		configFile = "config.json"
 	}
 
-	// Override with command line flags if provided
-	if *portPtr < 1 {
-		config.ListenPort = *portPtr
-	}
-
-	if *vncViewerPtr != "" {
-		config.VncViewer = *vncViewerPtr
-	}
-
-	if *rdpViewerPtr != "" {
-		config.RdpViewer = *rdpViewerPtr
-	}
-
-	if *vncPasswordFilePtr != "" {
-		config.VncPasswordFile = *vncPasswordFilePtr
-	}
-
-	return config, nil
-}
-
-func getUserHomeDir() string {
-	dir, err := os.UserHomeDir()
-	if err != nil {
-		log.Fatal(err)
-	}
-	return dir
-}
-
-// Helper functions for environment variables
-func getEnvString(key, fallback string) string {
-	if value, ok := os.LookupEnv(key); ok {
-		return value
-	}
-	return fallback
-}
-
-func getEnvInt(key string, fallback int) int {
-	if value, ok := os.LookupEnv(key); ok {
-		if i, err := strconv.Atoi(value); err == nil {
-			return i
-		}
-	}
-	return fallback
-}
-
-func (c *Config) load() error {
 	// Check if file exists
-	_, err := os.Stat(c.FilePath)
-	if os.IsNotExist(err) {
-		// Create directory if it doesn't exist
-		dir := filepath.Dir(c.FilePath)
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return fmt.Errorf("failed to create directory %s: %w", dir, err)
+	if _, err := os.Stat(configFile); err == nil {
+		v.SetConfigFile(configFile)
+		if err := v.ReadInConfig(); err != nil {
+			return nil, fmt.Errorf("error reading config file: %w", err)
 		}
-
-		// save default config
-		return c.save()
-	} else if err != nil {
-		return fmt.Errorf("failed to check config file: %w", err)
 	}
 
-	// Read file
-	data, err := os.ReadFile(c.FilePath)
-	if err != nil {
-		return fmt.Errorf("failed to read config file: %w", err)
+	// Load configuration from environment variables
+	v.SetEnvPrefix("HEIMDALL")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+
+	// Parse the configuration
+	var config Config
+	if err := v.Unmarshal(&config); err != nil {
+		return nil, fmt.Errorf("error unmarshaling config: %w", err)
 	}
 
-	// Parse JSON
-	if err := json.Unmarshal(data, c); err != nil {
-		return fmt.Errorf("failed to parse config file: %w", err)
+	// Store viper and config file for later use
+	config.v = v
+	config.configFile = configFile
+
+	// Validate and normalize configuration
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
 
-	if err := c.Validate(); err != nil {
-		return fmt.Errorf("failed to validate config: %w", err)
+	// Configure logging based on the config
+	setupLogging(config.Logging.Level, config.Logging.Format)
+
+	return &config, nil
+}
+
+// setDefaults sets the default values for configuration
+func setDefaults(v *viper.Viper) {
+	// Server defaults
+	v.SetDefault("server.port", 8080)
+
+	// Connection defaults
+	v.SetDefault("connection.auto_start", false)
+	v.SetDefault("connection.auto_start_id", "")
+
+	// Client defaults
+	v.SetDefault("clients.vnc_viewer", "vncviewer")
+
+	homeDir, err := os.UserHomeDir()
+	if err == nil {
+		v.SetDefault("clients.vnc_password_file", filepath.Join(homeDir, ".vnc", "passwd"))
+	} else {
+		v.SetDefault("clients.vnc_password_file", ".vnc/passwd")
+	}
+
+	v.SetDefault("clients.rdp_viewer", "")
+
+	// Security defaults
+	v.SetDefault("security.key_file", ".heimdall/encryption.key")
+
+	// Logging defaults
+	v.SetDefault("logging.level", "info")
+	v.SetDefault("logging.format", "text")
+}
+
+// setupLogging configures the logging system
+func setupLogging(level, format string) {
+	// Set log level
+	var logLevel logger.Level
+	switch strings.ToLower(level) {
+	case "debug":
+		logLevel = logger.DebugLevel
+	case "info":
+		logLevel = logger.InfoLevel
+	case "warn", "warning":
+		logLevel = logger.WarnLevel
+	case "error":
+		logLevel = logger.ErrorLevel
+	default:
+		logLevel = logger.InfoLevel
+	}
+	logger.SetLevel(logLevel)
+
+	// Set log format
+	if strings.ToLower(format) == "json" {
+		logger.EnableJSON()
+	}
+}
+
+// Validate checks if the configuration is valid
+func (c *Config) Validate() error {
+	// Validate server port
+	if c.Server.Port <= 0 || c.Server.Port > 65535 {
+		return errors.New("server port must be a valid port number")
+	}
+
+	// Validate auto-start ID if auto-start is enabled
+	if c.Connection.AutoStart && c.Connection.AutoStartID != "" {
+		found := false
+		for _, dev := range c.Devices {
+			if dev.ID == c.Connection.AutoStartID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("auto-start ID %s does not reference a valid device", c.Connection.AutoStartID)
+		}
+	}
+
+	// Validate VNC viewer
+	if c.Clients.VncViewer == "" {
+		return errors.New("VNC viewer cannot be empty")
+	}
+
+	// Check for duplicate device IDs
+	deviceIDMap := make(map[string]bool)
+	for _, dev := range c.Devices {
+		if deviceIDMap[dev.ID] {
+			return fmt.Errorf("duplicate device ID: %s", dev.ID)
+		}
+		deviceIDMap[dev.ID] = true
 	}
 
 	return nil
 }
 
-func (c *Config) save() error {
+// Save saves the configuration to file
+func (c *Config) Save() error {
+	// Update viper with current config values
+	c.v.Set("server.port", c.Server.Port)
+	c.v.Set("connection.auto_start", c.Connection.AutoStart)
+	c.v.Set("connection.auto_start_id", c.Connection.AutoStartID)
+	c.v.Set("clients.vnc_viewer", c.Clients.VncViewer)
+	c.v.Set("clients.vnc_password_file", c.Clients.VncPasswordFile)
+	c.v.Set("clients.rdp_viewer", c.Clients.RdpViewer)
+	c.v.Set("devices", c.Devices)
+	c.v.Set("security.key_file", c.Security.KeyFile)
+	c.v.Set("logging.level", c.Logging.Level)
+	c.v.Set("logging.format", c.Logging.Format)
+
+	// Validate before saving
 	if err := c.Validate(); err != nil {
 		return fmt.Errorf("invalid configuration: %w", err)
 	}
 
-	data, err := json.MarshalIndent(c, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal config: %w", err)
-	}
-
-	dir := filepath.Dir(c.FilePath)
+	// Create directory if it doesn't exist
+	dir := filepath.Dir(c.configFile)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
-	if err := os.WriteFile(c.FilePath, data, 0644); err != nil {
+	// Save to file
+	if err := c.v.WriteConfigAs(c.configFile); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
 	return nil
 }
 
-func (c *Config) Validate() error {
-	if c.ListenPort <= 0 || c.ListenPort > 65535 {
-		return errors.New("listen address must be a valid port number")
-	}
-
-	deviceIdMap := make(map[string]bool)
-	for _, pc := range c.Store.Devices {
-		if deviceIdMap[pc.ID] {
-			return fmt.Errorf("duplicate PC ID: %s", pc.ID)
+func findNextId(devices []Device) (int, error) {
+	highestId := 0
+	for _, device := range devices {
+		id, err := strconv.Atoi(device.ID)
+		if err != nil {
+			return -1, fmt.Errorf("invalid device ID: %w", err)
 		}
-		deviceIdMap[pc.ID] = true
-	}
 
-	// Verify AutoStartID references a valid PC
-	if c.AutoStart && c.AutoStartID != "" {
-		valid := false
-		for _, pc := range c.Store.Devices {
-			if pc.ID == c.AutoStartID {
-				valid = true
-				break
-			}
-		}
-		if !valid {
-			return fmt.Errorf("auto start ID %s does not reference a valid PC", c.AutoStartID)
+		if id > highestId {
+			highestId = id
 		}
 	}
-
-	if c.VncViewer == "" {
-		c.VncViewer = "vncviewer"
-	}
-
-	if c.VncPasswordFile == "" {
-		c.VncPasswordFile = fmt.Sprintf("%s/.vnc/passwd", getUserHomeDir())
-	}
-
-	if c.RdpViewer == "" {
-		c.RdpViewer = "" // TODO: Figure out a good default rdp viewer
-	}
-
-	return nil
+	// loop through each device
+	// convert id to int
+	// set highest
+	return highestId + 1, nil
 }
 
-func (c *Config) AddDevice(device device.Device) error {
-	err := c.Store.Add(device)
+// AddDevice adds a new device to the configuration
+func (c *Config) AddDevice(dev Device) (Device, error) {
+	// Validate device ID is not already in use
+	nextId, err := findNextId(c.Devices)
 	if err != nil {
-		return err
+		return Device{}, err
 	}
-	log.Printf("Added new device: (%s) %s", device.ID, device.Name)
-	return c.save()
-}
+	dev.ID = strconv.Itoa(nextId)
+	for _, existingDev := range c.Devices {
+		if existingDev.ID == dev.ID {
+			return Device{}, fmt.Errorf("device with ID %s already exists", dev.ID)
+		}
+	}
 
-func (c *Config) UpdateDevice(d device.Device) error {
-	err := c.Store.Update(d)
+	// Add device to list
+	c.Devices = append(c.Devices, dev)
+
+	// Save configuration
+	err = c.Save()
 	if err != nil {
-		return err
+		return Device{}, err
 	}
 
-	return c.save()
+	return dev, nil
 }
 
+// UpdateDevice updates an existing device
+func (c *Config) UpdateDevice(dev Device) error {
+	for i, existingDev := range c.Devices {
+		if existingDev.ID == dev.ID {
+			c.Devices[i] = dev
+			return c.Save()
+		}
+	}
+
+	return fmt.Errorf("device with ID %s not found", dev.ID)
+}
+
+// DeleteDevice removes a device from the configuration
 func (c *Config) DeleteDevice(id string) error {
-	err := c.Store.Delete(id)
-	if err != nil {
-		return err
+	found := false
+	newDevices := make([]Device, 0, len(c.Devices))
+
+	for _, dev := range c.Devices {
+		if dev.ID == id {
+			found = true
+		} else {
+			newDevices = append(newDevices, dev)
+		}
 	}
 
-	// Update references
-	if c.AutoStartID == id {
-		c.AutoStartID = ""
+	if !found {
+		return fmt.Errorf("device with ID %s not found", id)
 	}
 
-	return c.save()
+	c.Devices = newDevices
+
+	// If auto-start device was deleted, clear auto-start ID
+	if c.Connection.AutoStartID == id {
+		c.Connection.AutoStartID = ""
+	}
+
+	return c.Save()
 }
 
-func (c *Config) GetDevice(id string) (d device.Device, found bool) {
-	if d, found = c.Store.Get(id); found {
-		return d, true
+// GetDevice retrieves a device by ID
+func (c *Config) GetDevice(id string) (Device, bool) {
+	for _, dev := range c.Devices {
+		if dev.ID == id {
+			return dev, true
+		}
 	}
 
-	return d, false
+	return Device{}, false
+}
+
+// GetAllDevices returns all devices
+func (c *Config) GetAllDevices() []Device {
+	return c.Devices
+}
+
+// UpdateConfig updates configuration settings
+func (c *Config) UpdateConfig(port int, autoStart bool, autoStartID, vncViewer, vncPasswordFile, rdpViewer string) error {
+	c.Server.Port = port
+	c.Connection.AutoStart = autoStart
+	c.Connection.AutoStartID = autoStartID
+	c.Clients.VncViewer = vncViewer
+	c.Clients.VncPasswordFile = vncPasswordFile
+	c.Clients.RdpViewer = rdpViewer
+
+	return c.Save()
 }

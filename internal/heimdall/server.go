@@ -1,370 +1,489 @@
 package heimdall
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"html/template"
-	"log"
+	"io/fs"
 	"net/http"
 	"os"
 	"os/exec"
-	configuration "spark-heimdall/internal/config"
-	"spark-heimdall/internal/device"
-	"strconv"
+	"spark-heimdall/internal/config"
+	"spark-heimdall/internal/logger"
+	"strings"
 	"sync"
+	"time"
 )
 
+// Server handles HTTP requests and manages connections
 type Server struct {
-	configFile      *configuration.Config
-	templates       *template.Template
+	configFile      *config.Config
+	staticFS        fs.FS
+	templatesFS     fs.FS
+	httpServer      *http.Server
 	cmdLock         sync.Mutex
 	currentCmd      *exec.Cmd
 	currentDeviceId string
-	Store           *device.Store
 }
 
-func NewServer(configFile *configuration.Config, templates *template.Template) *Server {
+// APIResponse provides a standardized API response format
+type APIResponse struct {
+	Success bool        `json:"success"`
+	Data    interface{} `json:"data,omitempty"`
+	Error   string      `json:"error,omitempty"`
+}
+
+// NewServer creates a new server instance
+func NewServer(cfg *config.Config, staticFS fs.FS, templatesFS fs.FS) (*Server, error) {
 	return &Server{
-		configFile: configFile,
-		templates:  templates,
-		Store:      &device.Store{Devices: configFile.Devices},
-	}
+		configFile:  cfg,
+		staticFS:    staticFS,
+		templatesFS: templatesFS,
+	}, nil
 }
 
-func (s *Server) SetupRoutes() {
-	http.HandleFunc("/", loggingMiddleware(s.HandleIndex))
-	http.HandleFunc("/connect/", loggingMiddleware(s.HandleConnect))
-	http.HandleFunc("/disconnect", loggingMiddleware(s.HandleDisconnect))
-	http.HandleFunc("/api/pcs", loggingMiddleware(s.HandleGetPCs))
-	http.HandleFunc("/api/pcs/add", loggingMiddleware(s.HandleAddPC))
-	http.HandleFunc("/api/pcs/edit", loggingMiddleware(s.HandleEditPC))
-	http.HandleFunc("/api/pcs/delete", loggingMiddleware(s.HandleDeletePC))
-	http.HandleFunc("/api/config", loggingMiddleware(s.HandleGetConfig))
-	http.HandleFunc("/api/config/update", loggingMiddleware(s.HandleUpdateConfig))
-
-	// Serve static files (CSS, JS) if they exist
-	if _, err := os.Stat("static"); !os.IsNotExist(err) {
-		http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
-	}
-}
-
+// Start initializes and starts the HTTP server
 func (s *Server) Start() error {
-	// Auto-start if configured
-	log.Println("Starting server...")
-	if s.configFile.AutoStart && s.configFile.AutoStartID != "" {
-		log.Printf("Auto-starting ID %s", s.configFile.AutoStartID)
-		for _, pc := range s.Store.Devices {
-			if pc.ID == s.configFile.AutoStartID {
-				go s.connectToPC(pc)
-				break
-			}
-		}
+	// Set up router with all routes
+	router := s.setupRouter()
+
+	// Create HTTP server
+	s.httpServer = &http.Server{
+		Addr:    fmt.Sprintf(":%d", s.configFile.Server.Port),
+		Handler: router,
 	}
 
-	log.Printf("Starting server on port %d", s.configFile.ListenPort)
-	log.Printf("Open http://localhost:%d in your browser", s.configFile.ListenPort)
-	err := http.ListenAndServe(fmt.Sprintf(":%d", s.configFile.ListenPort), nil)
-	if err != nil {
-		log.Fatalf("Server failed: %v", err)
+	// Start the server
+	logger.Info("Starting HTTP server").WithField("port", s.configFile.Server.Port).Send()
+	return s.httpServer.ListenAndServe()
+}
+
+// Shutdown gracefully stops the server
+func (s *Server) Shutdown() error {
+	// Disconnect any active connections
+	s.DisconnectCurrentDevice()
+
+	// Create a deadline for shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Shutdown the HTTP server
+	if s.httpServer != nil {
+		logger.Info("Shutting down HTTP server").Send()
+		return s.httpServer.Shutdown(ctx)
 	}
 
 	return nil
 }
 
-func (s *Server) HandleIndex(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
+// setupRouter initializes all HTTP routes
+func (s *Server) setupRouter() http.Handler {
+	// Create router
+	mux := http.NewServeMux()
 
-	data := struct {
-		PCs              device.Devices
-		CurrentlyPlaying string
-	}{
-		PCs:              s.configFile.Store.Devices,
-		CurrentlyPlaying: s.currentDeviceId,
-	}
+	// API Routes
+	mux.HandleFunc("/api/devices", s.handleDevices)
+	mux.HandleFunc("/api/devices/", s.handleDeviceByID)
+	mux.HandleFunc("/api/config", s.handleConfig)
 
-	w.Header().Set("Content-Type", "text/html")
-	err := s.templates.ExecuteTemplate(w, "index.html", data)
-	if err != nil {
-		log.Printf("Template execution error: %v", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-	}
+	// Connection routes
+	mux.HandleFunc("/connect/", s.handleConnect)
+	mux.HandleFunc("/disconnect", s.handleDisconnect)
+
+	// Serve static files
+	mux.Handle("/", s.spaHandler())
+
+	// Apply middleware
+	return logMiddleware(corsMiddleware(mux))
 }
 
-func (s *Server) HandleConnect(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
-	}
+// spaHandler handles serving the SPA and static files
+func (s *Server) spaHandler() http.Handler {
+	// File server for static files
+	fileServer := http.FileServer(http.FS(s.staticFS))
 
-	id := r.URL.Path[len("/connect/"):]
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Try to serve the requested file
+		path := r.URL.Path
 
-	for _, d := range s.Store.Devices {
-		if d.ID == id {
-			go s.connectToPC(d)
-			http.Redirect(w, r, "/", http.StatusSeeOther)
-			return
+		// Check if file exists in static FS
+		_, err := fs.Stat(s.staticFS, path[1:]) // Remove leading slash
+		if os.IsNotExist(err) && path != "/" && !contains(path, []string{".js", ".css", ".ico", ".png", ".svg", ".jpg", ".jpeg", ".gif"}) {
+			// For SPA routing, serve index.html for routes that don't exist as files
+			// but don't match specific file extensions
+			r.URL.Path = "/"
+		}
+
+		// Serve the file
+		fileServer.ServeHTTP(w, r)
+	})
+}
+
+// Helper function to check if a string contains any of the given substrings
+func contains(s string, substrings []string) bool {
+	for _, substr := range substrings {
+		if strings.Contains(s, substr) {
+			return true
 		}
 	}
-
-	http.Error(w, "PC not found", http.StatusNotFound)
+	return false
 }
 
-func (s *Server) HandleDisconnect(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
-	}
+// handleDevices handles GET and POST requests for the /api/devices endpoint
+func (s *Server) handleDevices(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodOptions:
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding")
 
-	s.disconnectCurrentPC()
-	http.Redirect(w, r, "/", http.StatusSeeOther)
-}
+	case http.MethodGet:
+		// Return all devices
+		devices := s.configFile.GetAllDevices()
+		s.respondWithJSON(w, http.StatusOK, APIResponse{
+			Success: true,
+			Data:    devices,
+		})
 
-func (s *Server) HandleGetPCs(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(s.Store.Devices)
-}
+	case http.MethodPost:
+		// Add a new device
+		var dev config.Device
+		if err := json.NewDecoder(r.Body).Decode(&dev); err != nil {
+			logger.Error("Error decoding device").WithError(err).Send()
+			s.respondWithError(w, http.StatusBadRequest, "Invalid request payload")
+			return
+		}
 
-func (s *Server) HandleAddPC(w http.ResponseWriter, r *http.Request) {
-	log.Printf("Route: %s, Method: %s\n", r.URL.Path, r.Method)
-	if r.Method != "POST" {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var d device.Device
-	err := json.NewDecoder(r.Body).Decode(&d)
-	if err != nil {
-		log.Printf("Error decoding PC: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	log.Printf("Adding new device...")
-	err = s.configFile.AddDevice(d)
-	if err != nil {
-		log.Printf("Error adding device: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	err = s.Store.Add(d)
-	if err != nil {
-		log.Printf("Error adding device: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	err = json.NewEncoder(w).Encode(d)
-	if err != nil {
-		log.Printf("Error encoding device: %v", err)
-		return
-	}
-}
-func (s *Server) HandleEditPC(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var d device.Device
-	err := json.NewDecoder(r.Body).Decode(&d)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	err = s.configFile.UpdateDevice(d)
-	if err != nil {
-		log.Printf("Error updating device: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(d)
-}
-func (s *Server) HandleDeletePC(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var data struct {
-		ID string `json:"id"`
-	}
-	err := json.NewDecoder(r.Body).Decode(&data)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	err = s.configFile.DeleteDevice(data.ID)
-	if err != nil {
-		log.Printf("Error deleting device: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"success": true}`))
-}
-func (s *Server) HandleGetConfig(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	// Create a copy of the config without sensitive data
-	safeConfig := SafeEncodeConfig{
-		ListenPort:    s.configFile.ListenPort,
-		AutoStart:     s.configFile.AutoStart,
-		AutoStartID:   s.configFile.AutoStartID,
-		VncViewer:     s.configFile.VncViewer,
-		VncPasswdFile: s.configFile.VncPasswordFile,
-		RdpViewer:     s.configFile.RdpViewer,
-	}
-
-	json.NewEncoder(w).Encode(safeConfig)
-}
-
-type SafeEncodeConfig struct {
-	ListenPort    int    `json:"listen_port"`
-	AutoStart     bool   `json:"auto_start"`
-	AutoStartID   string `json:"auto_start_id"`
-	VncViewer     string `json:"vnc_viewer"`
-	VncPasswdFile string `json:"vnc_passwd_file"`
-	RdpViewer     string `json:"rdp_viewer"`
-}
-
-type SafeDecodeConfig struct {
-	ListenPort    string `json:"listen_port"`
-	AutoStart     bool   `json:"auto_start"`
-	AutoStartID   string `json:"auto_start_id"`
-	VncViewer     string `json:"vnc_viewer"`
-	VncPasswdFile string `json:"vnc_passwd_file"`
-	RdpViewer     string `json:"rdp_viewer"`
-}
-
-func (s *Server) HandleUpdateConfig(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var decodedConfig SafeDecodeConfig
-	err := json.NewDecoder(r.Body).Decode(&decodedConfig)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	var newConfig configuration.UpdateConfig
-
-	// Update only allowed fields
-	if decodedConfig.ListenPort != "" {
-		addr, err := strconv.ParseInt(decodedConfig.ListenPort, 10, 0)
+		// Handle password encryption
+		//if dev.Password != "" {
+		//	encryptedPwd, err := s.passwordManager.Encrypt(dev.Password)
+		//	if err != nil {
+		//		logger.Error("Error encrypting password").WithError(err).Send()
+		//		s.respondWithError(w, http.StatusInternalServerError, "Failed to encrypt password")
+		//		return
+		//	}
+		//	dev.Password = encryptedPwd
+		//}
+		newDev, err := s.configFile.AddDevice(dev)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			logger.Error("Error adding device").WithError(err).Send()
+			s.respondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		newConfig.ListenPort = int(addr)
+
+		s.respondWithJSON(w, http.StatusCreated, APIResponse{
+			Success: true,
+			Data:    newDev,
+		})
+
+	default:
+		s.respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
 	}
+}
 
-	newConfig.AutoStart = decodedConfig.AutoStart
-	newConfig.AutoStartID = decodedConfig.AutoStartID
-	newConfig.VncViewer = decodedConfig.VncViewer
-	newConfig.RdpViewer = decodedConfig.RdpViewer
-	newConfig.VncPasswordFile = decodedConfig.VncPasswdFile
-
-	err = s.configFile.Update(newConfig)
-	if err != nil {
-		log.Printf("Error updating config: %v", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+// handleDeviceByID handles requests for /api/devices/:id
+func (s *Server) handleDeviceByID(w http.ResponseWriter, r *http.Request) {
+	// Extract device ID from URL
+	id := strings.TrimPrefix(r.URL.Path, "/api/devices/")
+	if id == "" {
+		s.respondWithError(w, http.StatusBadRequest, "Device ID is required")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"success": true}`))
+	switch r.Method {
+	case http.MethodGet:
+		// Get device by ID
+		device, found := s.configFile.GetDevice(id)
+		if !found {
+			s.respondWithError(w, http.StatusNotFound, "Device not found")
+			return
+		}
+
+		// Don't send encrypted password
+		//device.Password = ""
+
+		s.respondWithJSON(w, http.StatusOK, APIResponse{
+			Success: true,
+			Data:    device,
+		})
+
+	case http.MethodPut:
+		// Update existing device
+		var dev config.Device
+		if err := json.NewDecoder(r.Body).Decode(&dev); err != nil {
+			s.respondWithError(w, http.StatusBadRequest, "Invalid request payload")
+			return
+		}
+
+		// Ensure ID in URL matches ID in body
+		dev.ID = id
+
+		// Handle password encryption
+		//if dev.Password != "" {
+		//	encryptedPwd, err := s.passwordManager.Encrypt(dev.Password)
+		//	if err != nil {
+		//		logger.Error("Error encrypting password").WithError(err).Send()
+		//		s.respondWithError(w, http.StatusInternalServerError, "Failed to encrypt password")
+		//		return
+		//	}
+		//	dev.Password = encryptedPwd
+		//}
+
+		if err := s.configFile.UpdateDevice(dev); err != nil {
+			s.respondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		s.respondWithJSON(w, http.StatusOK, APIResponse{
+			Success: true,
+			Data:    dev,
+		})
+
+	case http.MethodDelete:
+		// Delete device
+		if err := s.configFile.DeleteDevice(id); err != nil {
+			s.respondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		s.respondWithJSON(w, http.StatusOK, APIResponse{
+			Success: true,
+		})
+
+	default:
+		s.respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+	}
 }
 
-func (s *Server) connectToPC(pc device.Device) {
+// handleConfig handles requests for /api/config
+func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		// Return current configuration (excluding sensitive info)
+		safeConfig := struct {
+			Server struct {
+				Port int `json:"port"`
+			} `json:"server"`
+			Connection struct {
+				AutoStart   bool   `json:"auto_start"`
+				AutoStartID string `json:"auto_start_id"`
+			} `json:"connection"`
+			Clients struct {
+				VncViewer       string `json:"vnc_viewer"`
+				VncPasswordFile string `json:"vnc_password_file"`
+				RdpViewer       string `json:"rdp_viewer"`
+			} `json:"clients"`
+		}{
+			Server: struct {
+				Port int `json:"port"`
+			}{
+				Port: s.configFile.Server.Port,
+			},
+			Connection: struct {
+				AutoStart   bool   `json:"auto_start"`
+				AutoStartID string `json:"auto_start_id"`
+			}{
+				AutoStart:   s.configFile.Connection.AutoStart,
+				AutoStartID: s.configFile.Connection.AutoStartID,
+			},
+			Clients: struct {
+				VncViewer       string `json:"vnc_viewer"`
+				VncPasswordFile string `json:"vnc_password_file"`
+				RdpViewer       string `json:"rdp_viewer"`
+			}{
+				VncViewer:       s.configFile.Clients.VncViewer,
+				VncPasswordFile: s.configFile.Clients.VncPasswordFile,
+				RdpViewer:       s.configFile.Clients.RdpViewer,
+			},
+		}
+
+		s.respondWithJSON(w, http.StatusOK, APIResponse{
+			Success: true,
+			Data:    safeConfig,
+		})
+
+	case http.MethodPut:
+		// Update configuration
+		var configUpdate struct {
+			Server struct {
+				Port int `json:"port"`
+			} `json:"server"`
+			Connection struct {
+				AutoStart   bool   `json:"auto_start"`
+				AutoStartID string `json:"auto_start_id"`
+			} `json:"connection"`
+			Clients struct {
+				VncViewer       string `json:"vnc_viewer"`
+				VncPasswordFile string `json:"vnc_password_file"`
+				RdpViewer       string `json:"rdp_viewer"`
+			} `json:"clients"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&configUpdate); err != nil {
+			s.respondWithError(w, http.StatusBadRequest, "Invalid request payload")
+			return
+		}
+
+		// Update configuration
+		if err := s.configFile.UpdateConfig(
+			configUpdate.Server.Port,
+			configUpdate.Connection.AutoStart,
+			configUpdate.Connection.AutoStartID,
+			configUpdate.Clients.VncViewer,
+			configUpdate.Clients.VncPasswordFile,
+			configUpdate.Clients.RdpViewer,
+		); err != nil {
+			s.respondWithError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		s.respondWithJSON(w, http.StatusOK, APIResponse{
+			Success: true,
+		})
+
+	default:
+		s.respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+	}
+}
+
+// handleConnect handles connection requests
+func (s *Server) handleConnect(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	// Extract device ID from URL
+	id := strings.TrimPrefix(r.URL.Path, "/connect/")
+	if id == "" {
+		s.respondWithError(w, http.StatusBadRequest, "Device ID is required")
+		return
+	}
+
+	// Get device
+	device, found := s.configFile.GetDevice(id)
+	if !found {
+		s.respondWithError(w, http.StatusNotFound, "Device not found")
+		return
+	}
+
+	// Start connection in background
+	go s.ConnectToDevice(device)
+
+	s.respondWithJSON(w, http.StatusOK, APIResponse{
+		Success: true,
+	})
+}
+
+// handleDisconnect handles disconnect requests
+func (s *Server) handleDisconnect(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	// Disconnect current device
+	s.DisconnectCurrentDevice()
+
+	s.respondWithJSON(w, http.StatusOK, APIResponse{
+		Success: true,
+	})
+}
+
+// ConnectToDevice connects to a device
+func (s *Server) ConnectToDevice(device config.Device) {
 	s.cmdLock.Lock()
 	defer s.cmdLock.Unlock()
 
 	// First disconnect any current connection
 	if s.currentCmd != nil && s.currentCmd.Process != nil {
-		log.Printf("Killing current process")
+		logger.Info("Killing current connection process").Send()
 		err := s.currentCmd.Process.Kill()
 		if err != nil {
-			log.Printf("Failed to kill process: %v", err)
+			logger.Error("Failed to kill process").WithError(err).Send()
 		}
 		s.currentCmd.Wait()
 		s.currentCmd = nil
+		s.currentDeviceId = ""
 	}
 
 	var cmd *exec.Cmd
-	switch pc.Protocol {
+	switch device.Protocol {
 	case "vnc":
-		args := []string{pc.IPAddress}
-		if pc.Port != 0 {
-			args[0] = fmt.Sprintf("%s:%d", pc.IPAddress, pc.Port)
+		args := []string{device.IPAddress}
+		if device.Port != 0 {
+			args[0] = fmt.Sprintf("%s:%d", device.IPAddress, device.Port)
 		} else {
-			args[0] = fmt.Sprintf("%s:5900", pc.IPAddress)
+			args[0] = fmt.Sprintf("%s:5900", device.IPAddress)
 		}
 
-		if pc.FullScreen {
+		if device.FullScreen {
 			args = append(args, "-FullScreen")
 		}
 
-		args = append(args, "-PasswordFile", s.configFile.VncPasswordFile)
+		args = append(args, "-PasswordFile", s.configFile.Clients.VncPasswordFile)
 
-		log.Println(args)
+		logger.Debug("VNC command arguments").WithField("args", args).Send()
 
-		cmd = exec.Command(s.configFile.VncViewer, args...)
+		cmd = exec.Command(s.configFile.Clients.VncViewer, args...)
+
 	case "rdp":
-		args := []string{"-u", pc.Username}
+		args := []string{"-u", device.Username}
 
-		if pc.Password != "" {
-			args = append(args, "-p", pc.Password)
-		}
+		//if device.Password != "" {
+		//	// Decrypt password
+		//	password, err := s.passwordManager.Decrypt(device.Password)
+		//	if err != nil {
+		//		logger.Error("Failed to decrypt password").WithError(err).Send()
+		//		return
+		//	}
+		//
+		//	args = append(args, "-p", password)
+		//}
 
-		if pc.FullScreen {
+		if device.FullScreen {
 			args = append(args, "-f")
 		}
 
-		args = append(args, pc.IPAddress)
-		if pc.Port != 0 {
-			args[len(args)-1] = fmt.Sprintf("%s:%d", pc.IPAddress, pc.Port)
+		args = append(args, device.IPAddress)
+		if device.Port != 0 {
+			args[len(args)-1] = fmt.Sprintf("%s:%d", device.IPAddress, device.Port)
 		}
 
-		cmd = exec.Command(s.configFile.RdpViewer, args...)
+		logger.Debug("RDP command arguments").WithField("args", args).Send()
+
+		cmd = exec.Command(s.configFile.Clients.RdpViewer, args...)
+
 	default:
-		log.Printf("Unknown protocol: %s", pc.Protocol)
+		logger.Error("Unknown protocol").WithField("protocol", device.Protocol).Send()
 		return
 	}
 
-	log.Printf("Running command: %v %v", cmd.Path, cmd.Args)
-	log.Printf("Connecting to %s (%s)", pc.Name, pc.IPAddress)
+	logger.Info("Connecting to device").
+		WithField("name", device.Name).
+		WithField("id", device.ID).
+		WithField("ip", device.IPAddress).
+		WithField("protocol", device.Protocol).
+		Send()
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	err := cmd.Start()
 	if err != nil {
-		log.Printf("Failed to start command: %v", err)
+		logger.Error("Failed to start command").WithError(err).Send()
 		return
 	}
 
 	s.currentCmd = cmd
-	s.currentDeviceId = pc.ID
+	s.currentDeviceId = device.ID
 
 	go func() {
 		err := cmd.Wait()
 		if err != nil {
-			log.Printf("Command exited with error: %v", err)
-			s.currentCmd = nil
-			s.currentDeviceId = ""
+			logger.Error("Command exited with error").WithError(err).Send()
+		} else {
+			logger.Info("Connection process exited").Send()
 		}
 
 		s.cmdLock.Lock()
@@ -377,18 +496,88 @@ func (s *Server) connectToPC(pc device.Device) {
 	}()
 }
 
-func (s *Server) disconnectCurrentPC() {
+// DisconnectCurrentDevice disconnects the current device if any
+func (s *Server) DisconnectCurrentDevice() {
 	s.cmdLock.Lock()
 	defer s.cmdLock.Unlock()
 
 	if s.currentCmd != nil && s.currentCmd.Process != nil {
-		log.Printf("Disconnecting current PC")
+		logger.Info("Disconnecting current device").Send()
 		err := s.currentCmd.Process.Kill()
 		if err != nil {
-			log.Printf("Failed to kill process: %v", err)
+			logger.Error("Failed to kill process").WithError(err).Send()
 		}
 		s.currentCmd.Wait()
 		s.currentCmd = nil
 		s.currentDeviceId = ""
 	}
+}
+
+// Helper functions for JSON response handling
+func (s *Server) respondWithError(w http.ResponseWriter, code int, message string) {
+	s.respondWithJSON(w, code, APIResponse{
+		Success: false,
+		Error:   message,
+	})
+}
+
+func (s *Server) respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+	response, err := json.Marshal(payload)
+	if err != nil {
+		logger.Error("Error marshaling JSON").WithError(err).Send()
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(code)
+	w.Write(response)
+}
+
+// logMiddleware logs incoming HTTP requests
+func logMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
+		// Create a response writer wrapper to capture status code
+		rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+
+		// Call the next handler
+		next.ServeHTTP(rw, r)
+
+		// Log the request
+		duration := time.Since(start)
+		logger.Info("HTTP Request").
+			WithField("method", r.Method).
+			WithField("path", r.URL.Path).
+			WithField("status", rw.statusCode).
+			WithField("duration", duration.Milliseconds()).
+			WithField("ip", r.RemoteAddr).
+			Send()
+	})
+}
+
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, DELETE, PUT")
+		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding")
+		if r.Method == "OPTIONS" {
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// responseWriter wraps http.ResponseWriter to capture status code
+type responseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
 }
