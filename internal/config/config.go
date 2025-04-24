@@ -241,10 +241,32 @@ func (c *Config) Save() error {
 	return nil
 }
 
+func findNextId(devices []Device) (int, error) {
+	highestId := 0
+	for _, device := range devices {
+		id, err := strconv.Atoi(device.ID)
+		if err != nil {
+			return -1, fmt.Errorf("invalid device ID: %w", err)
+		}
+
+		if id > highestId {
+			highestId = id
+		}
+	}
+	// loop through each device
+	// convert id to int
+	// set highest
+	return highestId + 1, nil
+}
+
 // AddDevice adds a new device to the configuration
 func (c *Config) AddDevice(dev Device) (Device, error) {
 	// Validate device ID is not already in use
-	dev.ID = strconv.Itoa(len(c.Devices))
+	nextId, err := findNextId(c.Devices)
+	if err != nil {
+		return Device{}, err
+	}
+	dev.ID = strconv.Itoa(nextId)
 	for _, existingDev := range c.Devices {
 		if existingDev.ID == dev.ID {
 			return Device{}, fmt.Errorf("device with ID %s already exists", dev.ID)
@@ -255,7 +277,7 @@ func (c *Config) AddDevice(dev Device) (Device, error) {
 	c.Devices = append(c.Devices, dev)
 
 	// Save configuration
-	err := c.Save()
+	err = c.Save()
 	if err != nil {
 		return Device{}, err
 	}
